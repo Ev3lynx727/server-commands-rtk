@@ -1,0 +1,27 @@
+# Pre-commit hooks for server-commands-rtk
+#
+# Usage:
+#   pip install pre-commit
+#   git init && pre-commit install
+#
+# Run manually:
+#   pre-commit run --all-files
+
+repos:
+  - repo: local
+    hooks:
+      - id: tsc
+        name: TypeScript type check
+        entry: npx tsc --noEmit
+        language: system
+        files: \.ts$
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: build
+        name: Build dist/
+        entry: npm run build
+        language: system
+        files: ^src/
+        pass_filenames: false
+        stages: [pre-commit]
