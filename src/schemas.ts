@@ -45,6 +45,7 @@ export const ExecResult = z.object({
   stderr: z.string(),
   exitCode: z.number(),
   duration_ms: z.number(),
+  error_type: ErrorCategory.nullable(),
 });
 
 export type ExecResult = z.infer<typeof ExecResult>;
