@@ -21,22 +21,39 @@ function classifyError(err: NodeJS.ErrnoException, timedOut: boolean): ErrorCate
 function collectStream(
   stream: NodeJS.ReadableStream | null,
   maxBytes: number,
+  signal?: AbortSignal,
 ): Promise<string> {
   const chunks: Buffer[] = [];
   let total = 0;
   return new Promise((resolve, reject) => {
     if (!stream) { resolve(""); return; }
-    stream.on("data", (chunk: Buffer) => {
+    if (signal?.aborted) { resolve(""); return; }
+    const onAbort = () => {
+      cleanup();
+      resolve(Buffer.concat(chunks).toString());
+    };
+    const cleanup = () => {
+      signal?.removeEventListener("abort", onAbort);
+      stream.removeListener("data", onData);
+      stream.removeListener("error", onError);
+      stream.removeListener("end", onEnd);
+    };
+    const onData = (chunk: Buffer) => {
       total += chunk.length;
       if (total > maxBytes) {
         (stream as any).destroy();
+        cleanup();
         reject(new Error("maxBuffer exceeded"));
         return;
       }
       chunks.push(chunk);
-    });
-    stream.on("error", reject);
-    stream.on("end", () => resolve(Buffer.concat(chunks).toString()));
+    };
+    const onError = (err: Error) => { cleanup(); reject(err); };
+    const onEnd = () => { cleanup(); resolve(Buffer.concat(chunks).toString()); };
+    stream.on("data", onData);
+    stream.on("error", onError);
+    stream.on("end", onEnd);
+    signal?.addEventListener("abort", onAbort);
   });
 }
 
@@ -63,27 +80,48 @@ export async function executeCommand(
     }
   }
 
+  let timedOut = false;
+  let child: ChildProcess | null = null;
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), opts.timeout_ms);
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ac.abort();
+    if (child && child.pid) {
+      try { process.kill(child.pid, "SIGKILL"); } catch {}
+    }
+  }, opts.timeout_ms);
 
   try {
-    const child = spawn("/bin/sh", ["-c", command], {
+    child = spawn("/bin/sh", ["-c", command], {
       cwd,
-      signal: ac.signal,
       stdio: ["ignore", "pipe", "pipe"],
     }) as ChildProcess;
 
-    const [stdout, stderr] = await Promise.all([
-      collectStream(child.stdout, maxBytes),
-      collectStream(child.stderr, maxBytes),
-    ]);
-
-    const exitCode = await new Promise<number>((resolve) => {
-      child.on("close", resolve);
-      child.on("error", () => resolve(1));
+    const exitCodePromise = new Promise<number>((resolve) => {
+      child!.on("close", resolve);
+      child!.on("error", () => resolve(1));
     });
 
+    const [stdout, stderr] = await Promise.all([
+      collectStream(child.stdout, maxBytes, ac.signal),
+      collectStream(child.stderr, maxBytes, ac.signal),
+    ]);
+
     clearTimeout(timer);
+    if (timedOut) {
+      child.kill();
+      return {
+        success: false,
+        stdout,
+        stderr: `Command timed out after ${opts.timeout_ms}ms`,
+        exitCode: 124,
+        duration_ms: Date.now() - startTime,
+        error_type: "timeout",
+      };
+    }
+
+    const exitCode = await exitCodePromise;
     return {
       success: exitCode === 0,
       stdout,
@@ -94,19 +132,26 @@ export async function executeCommand(
     };
   } catch (error: unknown) {
     clearTimeout(timer);
+    if (timedOut) {
+      return {
+        success: false,
+        stdout: "",
+        stderr: `Command timed out after ${opts.timeout_ms}ms`,
+        exitCode: 124,
+        duration_ms: Date.now() - startTime,
+        error_type: "timeout",
+      };
+    }
     const err = error as NodeJS.ErrnoException;
-    const timedOut = err.name === "AbortError";
     return {
       success: false,
       stdout: "",
-      stderr: timedOut
-        ? `Command timed out after ${opts.timeout_ms}ms`
-        : err.message === "maxBuffer exceeded"
-          ? `Output exceeded ${opts.max_buffer_mb}MB limit`
-          : err.message,
-      exitCode: timedOut ? 124 : 1,
+      stderr: err.message === "maxBuffer exceeded"
+        ? `Output exceeded ${opts.max_buffer_mb}MB limit`
+        : err.message,
+      exitCode: 1,
       duration_ms: Date.now() - startTime,
-      error_type: classifyError(err, timedOut),
+      error_type: classifyError(err, false),
     };
   }
 }

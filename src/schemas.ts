@@ -8,6 +8,7 @@ export const RunProcessArgs = z.object({
   use_rtk_filter: z.boolean().default(true),
   use_raw: z.boolean().default(false),
   model_used: z.string().optional(),
+  timeout_ms: z.number().int().positive().optional(),
 });
 
 export type RunProcessArgs = z.infer<typeof RunProcessArgs>;

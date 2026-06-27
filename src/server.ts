@@ -98,6 +98,11 @@ export class ServerCommandsRTK {
                 description:
                   "Model name that executed this command (for training metadata)",
               },
+              timeout_ms: {
+                type: "number",
+                description:
+                  "Per-command timeout in milliseconds (overrides server default)",
+              },
             },
             required: ["command"],
           },
@@ -362,7 +367,7 @@ export class ServerCommandsRTK {
 
     this.cache.recordMiss();
     const result = await executeCommand(execCommand, {
-      timeout_ms: this.config.timeout_ms,
+      timeout_ms: parsed.timeout_ms ?? this.config.timeout_ms,
       max_buffer_mb: this.config.max_buffer_mb,
       cwd: parsed.cwd,
     });
