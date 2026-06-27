@@ -1,83 +1,173 @@
 # server-commands-rtk
 
-MCP server with RTK (Rust Token Killer) auto-filtering, persistent caching, and enhanced execution logging for shell commands.
+MCP server for shell command execution with RTK auto-filtering (~90% token reduction), persistent caching, streaming spawn executor with timeout, and full execution logging for training data.
 
-## Features
+## Architecture
 
-- **Auto-RTK**: Automatically wraps commands with `rtk` for ~90% token reduction
-- **Persistent Cache**: Results cached in `.command-cache.json` across sessions
-- **Enhanced Execution Log**: Full stdout/stderr in `.execution-log.json` (single source of truth for training data)
-- **Configurable Settings**: Timeout, buffer size, and log rotation via `rtk-hook.toml`
-- **Token Savings**: Dramatically reduces LLM token consumption
-- **Graceful Shutdown**: Proper cache flush on SIGTERM/SIGINT
+```
+MCP Client → run_process → RTK preprocessor → spawn("/bin/sh", ["-c", cmd])
+                            ↓
+                     AbortController (timeout)
+                            ↓
+                   collectStream (stdout/stderr)
+                            ↓
+                     Cache (.command-cache.json)
+                            ↓
+                     Logger (.execution-log.jsonl)
+```
+
+The executor uses `spawn` (not `exec`) — streaming output with no `maxBuffer` ceiling. Timeout uses `AbortController` to cancel stream collection immediately, then `SIGKILL` to terminate the process tree.
 
 ## Installation
 
 ```bash
-# Install RTK first (if not already)
+# Install RTK first
 curl -LsSf https://ev3lynx.github.io/rtk/install.sh | sh
 
-# Or via npm
-npm install -g rtk-cli
-
-# Add to OpenCode config (~/.config/opencode/opencode.jsonc)
-{
-  "mcp": {
-    "server-commands-rtk": {
-      "type": "local",
-      "command": ["node", "/path/to/server-commands-rtk/src/index.js"],
-      "enabled": true,
-      "timeout": 60000
-    }
-  }
-}
-
-# Or set alias in ~/.bashrc so it runs as a standard terminal command.
-
-alias rtk-runner='node /home/ev3lynx/.openclaw/workspace-gh0st/server/server-commands-rtk/src/index.js'
-
-# and run, after alias set
-source ~/.bashrc
-
-# after set alias edit config (~/.config/opencode/opencode.jsonc), with set alias
-{
-  "mcp": {
-    "server-commands-rtk": {
-      "type": "local",
-      "command": ["rtk-runner"],
-      "enabled": true,
-      "timeout": 60000
-    }
-  }
-}
-
+# Build
+cd server-commands-rtk
+npm install
+npm run build
 ```
+
+Add to OpenCode config:
+
+```json
+{
+  "mcp": {
+    "server-commands-rtk": {
+      "type": "local",
+      "command": ["node", "/path/to/server-commands-rtk/dist/index.js"],
+      "enabled": true,
+      "timeout": 60000
+    }
+  }
+}
+```
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `run_process` | Execute shell command with RTK auto-filtering |
+| `get_cache_stats` | View cache hits/misses and size |
+| `clear_command_cache` | Clear all cached commands |
+| `cached_commands` | List all cached commands with keys |
+| `execution_log` | Get execution log with optional archive history |
+| `list_archives` | List rotated log archive files for dataset pipeline |
+| `write_file` | Write file with base64 content (bypasses JSON serialization issues) |
 
 ## Usage
 
-### Via MCP Tools
+### run_process
 
 ```javascript
-// Auto-RTK (default) - commands wrapped automatically
+// Auto-RTK (default) — ~90% token reduction
 run_process({command: "ls -la"})
 
-// Bypass auto-RTK for raw output
+// Raw output, no filtering
 run_process({command: "ls -la", use_raw: true})
 
-// Get cache statistics
-get_cache_stats()
+// Explicit RTK control
+run_process({command: "ls -la", use_rtk_filter: true})
 
-// Clear cache
-clear_command_cache()
+// With timeout override (ms)
+run_process({command: "sleep 30", timeout_ms: 5000})
 
-// List cached commands
-cached_commands()
+// With working directory and description
+run_process({
+  command: "npm test",
+  cwd: "/path/to/project",
+  description: "run unit tests",
+  timeout_ms: 30000
+})
 
-// Get execution log
-execution_log({limit: 100})
+// Clear cache for a specific command
+run_process({command: "npm install", clear_cache: true})
 ```
 
-### Token Comparison
+### execution_log
+
+```javascript
+// Last 100 entries
+execution_log({limit: 100})
+
+// Include rotated archives for full history
+execution_log({limit: 500, include_archives: true})
+```
+
+### write_file
+
+Use instead of `write`/`filesystem_write_file` when content contains quotes, backticks, or special characters that break JSON serialization:
+
+```javascript
+write_file({
+  path: "/tmp/output.txt",
+  content_b64: "SGVsbG8gV29ybGQ="   // base64-encoded content
+})
+```
+
+## Configuration (rtk-hook.toml)
+
+```toml
+[execution]
+timeout_ms = 60000         # Default command timeout
+max_buffer_mb = 10         # Max output buffer per command
+max_log_entries = 1000     # Max in-memory log entries
+max_archives = 50          # Max rotated archive files
+compress_archives = true   # Gzip rotated archives
+
+[cache]
+debounce_ms = 2000         # Debounce window for identical commands
+
+[hook]
+auto_wrap = true
+
+exclude = ["curl", "wget", "ssh", "scp"]
+
+[rtk]
+ultra_compact = false
+```
+
+## Cache
+
+- `.command-cache.json` — persistent JSON cache across sessions
+- Cache key = hash of (command + cwd)
+- Hit/miss tracking via `get_cache_stats`
+
+## Execution Log
+
+- `.execution-log.jsonl` — append-only JSONL with full stdout/stderr
+- Auto-rotation when `max_log_entries` exceeded
+- Compressed archives (`.jsonl.gz`) in `.execution-log.archives/`
+- Includes per-entry metadata: exit code, duration, model used, error category, RTK filter status, line counts
+
+## Response Format
+
+All tools return JSON with structure:
+
+```json
+{
+  "cached": false,
+  "key": "sha256-hash",
+  "command": "echo hello",
+  "result": {
+    "success": true,
+    "stdout": "hello\n",
+    "stderr": "",
+    "exitCode": 0,
+    "duration_ms": 12,
+    "error_type": null
+  },
+  "rtk_filtered": true
+}
+```
+
+Error types: `timeout`, `not_found`, `permission_error`, `memory_error`, `unknown_error`.
+
+Timeout returns `exitCode: 124` and stderr message.
+
+## Token Savings Example
 
 | Command | Raw Tokens | RTK Tokens | Savings |
 |---------|-----------|------------|---------|
@@ -86,76 +176,16 @@ execution_log({limit: 100})
 | `git diff` | ~15,000 | ~500 | **97%** |
 | `npm install` | ~5,000 | ~200 | **96%** |
 
-## Configuration
+Typical session: 58% budget → ~5-10% with RTK.
 
-### RTK Hook Config (rtk-hook.toml)
+## Environment Variables
 
-```toml
-[hook]
-auto_wrap = true
-
-exclude = [
-  "curl",
-  "wget",
-  "ssh",
-  "scp",
-]
-
-[rtk]
-ultra_compact = false
-
-[commands.ls]
-wrapper = "rtk ls"
-
-[execution]
-timeout_ms = 60000      # Command timeout in ms
-max_buffer_mb = 10      # Max output buffer in MB
-max_log_entries = 1000   # Max log entries to keep
-```
-
-### Environment Variables
-
-```bash
-# Optional: custom server directory
-export SERVER_DIR="/path/to/server-commands-rtk"
-```
-
-## Tools
-
-| Tool | Description |
-|------|-------------|
-| `run_process` | Execute shell command with RTK auto-filtering |
-| `get_cache_stats` | View cache hits/misses |
-| `clear_command_cache` | Clear all cached commands |
-| `cached_commands` | List all cached commands |
-| `execution_log` | Get execution log (includes stdout/stderr for training data) |
-
-## Cache Files
-
-- `.command-cache.json` - Persistent command cache
-- `.execution-log.json` - Execution audit log (last 1000 entries)
-
-## Token Savings Example
-
-Session with 115,267 tokens:
-- Without RTK: 58% budget used
-- With RTK: ~10% budget (~12K tokens)
-
-**Expected reduction: ~90%**
-
-## OpenCode Integration
-
-The MCP is pre-configured for these agents:
-- builder-pro
-- docker-config
-- deploy
-- deploy-init
-- deploy-prod
-- deploy-verify
-- deploy-monitor
-- deploy-rollback
-
-To enable globally, add `server-commands-rtk_run_process: true` to any agent's tools.
+| Variable | Description |
+|----------|-------------|
+| `SERVER_DIR` | Custom server root directory |
+| `RTK_MODEL_USED` | Model name override for execution metadata |
+| `MCP_RESOURCE_ROOTS` | JSON map of scheme→dir for resource templates |
+| `LOG_LEVEL` | Log level (error, warn, info, debug) |
 
 ## License
 
