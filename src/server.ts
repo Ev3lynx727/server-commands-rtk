@@ -3,10 +3,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import {
   RunProcessArgs,
   ExecutionLogArgs,
@@ -27,6 +30,7 @@ export class ServerCommandsRTK {
   private readonly config: ServerConfig;
   private readonly cache: CommandCache;
   private readonly logger: ExecutionLogger;
+  private clientName: string | null = null;
 
   constructor() {
     const serverDir =
@@ -40,13 +44,22 @@ export class ServerCommandsRTK {
     );
     this.logger = new ExecutionLogger(
       path.join(serverDir, ".execution-log.jsonl"),
-      this.config.max_log_entries,
+      this.config.max_active_entries,
+      this.config.max_archives,
+      this.config.compress_archives,
     );
 
     this.server = new Server(
       { name: "server-commands-rtk", version: "0.2.0" },
-      { capabilities: { tools: {} } },
+      { capabilities: { tools: {}, resources: {} } },
     );
+
+    this.server.oninitialized = () => {
+      const client = this.server.getClientVersion();
+      if (client?.name) {
+        this.clientName = client.name;
+      }
+    };
 
     this.setupHandlers();
   }
@@ -85,6 +98,11 @@ export class ServerCommandsRTK {
                 description:
                   "Model name that executed this command (for training metadata)",
               },
+              timeout_ms: {
+                type: "number",
+                description:
+                  "Per-command timeout in milliseconds (overrides server default)",
+              },
             },
             required: ["command"],
           },
@@ -106,13 +124,23 @@ export class ServerCommandsRTK {
         },
         {
           name: "execution_log",
-          description: "Get execution log (last 100 entries)",
+          description: "Get execution log (last N entries, optionally including archives)",
           inputSchema: {
             type: "object",
             properties: {
               limit: { type: "number", default: 100 },
+              include_archives: {
+                type: "boolean",
+                default: false,
+                description: "Include rotated archive files for full history",
+              },
             },
           },
+        },
+        {
+          name: "list_archives",
+          description: "List all rotated log archive files for dataset pipeline",
+          inputSchema: { type: "object", properties: {} },
         },
         {
           name: "write_file",
@@ -181,6 +209,7 @@ export class ServerCommandsRTK {
           }
           case "execution_log": {
             const parsed = ExecutionLogArgs.parse(args ?? {});
+            const entries = this.logger.read(parsed.limit, parsed.include_archives);
             return {
               content: [
                 {
@@ -188,8 +217,24 @@ export class ServerCommandsRTK {
                   text: JSON.stringify(
                     {
                       total: parsed.limit,
-                      entries: this.logger.read(parsed.limit),
+                      include_archives: parsed.include_archives,
+                      entries,
                     },
+                    null,
+                    2,
+                  ),
+                },
+              ],
+            };
+          }
+          case "list_archives": {
+            const archives = this.logger.listArchives();
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(
+                    { archives, count: archives.length },
                     null,
                     2,
                   ),
@@ -204,6 +249,77 @@ export class ServerCommandsRTK {
         }
       },
     );
+
+    const homeDir = process.env.HOME || "/home/ev3lynx";
+
+    const raw = process.env.MCP_RESOURCE_ROOTS
+      || '{"headquarters": "~/headquarters"}';
+
+    let roots: Record<string, string> = {};
+    try { roots = JSON.parse(raw) } catch { roots = { headquarters: "~/headquarters" } }
+
+    const resolvedRoots: { scheme: string; dir: string }[] = [];
+    for (const [scheme, dir] of Object.entries(roots)) {
+      const resolved = dir.startsWith("~/") ? path.join(homeDir, dir.slice(2)) : dir;
+      if (existsSync(resolved)) {
+        resolvedRoots.push({ scheme, dir: resolved });
+      }
+    }
+
+    this.server.setRequestHandler(
+      ListResourcesRequestSchema,
+      () => ({ resources: [] }),
+    );
+
+    this.server.setRequestHandler(
+      ListResourceTemplatesRequestSchema,
+      () => ({
+        resourceTemplates: resolvedRoots.map(({ scheme, dir }) => ({
+          uriTemplate: `${scheme}://{path}`,
+          name: `${scheme}:// resource`,
+          description: `Access documents from ${dir} by path (e.g. ${scheme}://path/to/file.md)`,
+          mimeType: "text/markdown",
+        })),
+      }),
+    );
+
+    this.server.setRequestHandler(
+      ReadResourceRequestSchema,
+      async (request) => {
+        const uri = request.params.uri;
+
+        const matched = resolvedRoots.find((r) =>
+          uri.startsWith(`${r.scheme}://`)
+        );
+        if (!matched) {
+          throw new Error(`Unsupported URI scheme: ${uri}`);
+        }
+
+        const filePath = path.join(matched.dir, uri.slice(matched.scheme.length + 3));
+        if (!filePath.startsWith(matched.dir)) {
+          throw new Error(`Path traversal denied: ${uri}`);
+        }
+
+        if (!existsSync(filePath)) {
+          throw new Error(`File not found: ${uri}`);
+        }
+
+        const content = readFileSync(filePath, "utf-8");
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: filePath.endsWith(".md")
+                ? "text/markdown"
+                : filePath.endsWith(".json")
+                ? "application/json"
+                : "text/plain",
+              text: content,
+            },
+          ],
+        };
+      },
+    );
   }
 
   private async handleRunProcess(
@@ -214,6 +330,7 @@ export class ServerCommandsRTK {
     const model =
       parsed.model_used ||
       process.env.RTK_MODEL_USED ||
+      this.clientName ||
       "unknown";
 
     const useRtk = parsed.use_raw
@@ -250,7 +367,7 @@ export class ServerCommandsRTK {
 
     this.cache.recordMiss();
     const result = await executeCommand(execCommand, {
-      timeout_ms: this.config.timeout_ms,
+      timeout_ms: parsed.timeout_ms ?? this.config.timeout_ms,
       max_buffer_mb: this.config.max_buffer_mb,
       cwd: parsed.cwd,
     });

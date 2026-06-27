@@ -8,12 +8,14 @@ export const RunProcessArgs = z.object({
   use_rtk_filter: z.boolean().default(true),
   use_raw: z.boolean().default(false),
   model_used: z.string().optional(),
+  timeout_ms: z.number().int().positive().optional(),
 });
 
 export type RunProcessArgs = z.infer<typeof RunProcessArgs>;
 
 export const ExecutionLogArgs = z.object({
   limit: z.number().int().positive().default(100),
+  include_archives: z.boolean().default(false),
 });
 
 export type ExecutionLogArgs = z.infer<typeof ExecutionLogArgs>;
@@ -23,6 +25,9 @@ export const ServerConfig = z.object({
   max_buffer_mb: z.number().int().positive().default(10),
   max_log_entries: z.number().int().positive().default(1000),
   debounce_ms: z.number().int().positive().default(2000),
+  max_active_entries: z.number().int().nonnegative().default(1000),
+  max_archives: z.number().int().nonnegative().default(10),
+  compress_archives: z.boolean().default(true),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfig>;
@@ -45,6 +50,7 @@ export const ExecResult = z.object({
   stderr: z.string(),
   exitCode: z.number(),
   duration_ms: z.number(),
+  error_type: ErrorCategory.nullable(),
 });
 
 export type ExecResult = z.infer<typeof ExecResult>;

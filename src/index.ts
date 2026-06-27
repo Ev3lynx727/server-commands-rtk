@@ -3,7 +3,7 @@ import { ServerCommandsRTK } from "./server.js";
 
 function printHelp(): void {
   const help = [
-    "Server-Commands-RTK v0.2.0 — MCP Server with RTK Caching",
+    "Server-Commands-RTK v0.2.2 — MCP Server with RTK Caching",
     "",
     "Usage:",
     "  node dist/index.js              Run MCP server",
@@ -15,12 +15,13 @@ function printHelp(): void {
     "  get_cache_stats      - Get cache hits/misses",
     "  clear_command_cache  - Clear all cached commands",
     "  cached_commands      - List all cached commands",
-    "  execution_log        - Get execution log (last 100 entries)",
+    "  execution_log        - Get execution log (last N entries, with --include_archives flag)",
+    "  list_archives        - List rotated log archives for dataset pipeline",
     "  write_file           - Write file with base64 content (avoids JSON parse issues)",
     "",
     "Environment:",
     "  SERVER_DIR     - Path to server directory (default: parent of dist/)",
-    "  RTK_MODEL_USED - Model name for training metadata",
+    "  RTK_MODEL_USED - Model name override (default: auto-detected from client)",
   ].join("\n");
   console.log("\n" + help + "\n");
 }
