@@ -10,13 +10,17 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from "node:fs";
+import type { SchemeEntry } from "./resolver.js";
+import { expandHome, resolveUri, listSchemes } from "./resolver.js";
 import {
   RunProcessArgs,
   ExecutionLogArgs,
   WriteFileArgs,
+  ResolveUriArgs,
 } from "./schemas.js";
 import type { ServerConfig } from "./schemas.js";
 import { loadConfig } from "./config.js";
+import { parse } from "smol-toml";
 import { CommandCache } from "./cache.js";
 import { ExecutionLogger } from "./logger.js";
 import { executeCommand } from "./executor.js";
@@ -30,6 +34,7 @@ export class ServerCommandsRTK {
   private readonly config: ServerConfig;
   private readonly cache: CommandCache;
   private readonly logger: ExecutionLogger;
+  private readonly roots: SchemeEntry[] = [];
   private clientName: string | null = null;
 
   constructor() {
@@ -38,12 +43,15 @@ export class ServerCommandsRTK {
       path.resolve(__dirname, "..");
 
     this.config = loadConfig(path.join(serverDir, "rtk-hook.toml"));
+
+    const logDir = path.join(expandHome("~/.local/share"), "state/server-commands-rtk");
+    mkdirSync(logDir, { recursive: true });
     this.cache = new CommandCache(
-      path.join(serverDir, ".command-cache.json"),
+      path.join(logDir, "command-cache.json"),
       this.config.debounce_ms,
     );
     this.logger = new ExecutionLogger(
-      path.join(serverDir, ".execution-log.jsonl"),
+      path.join(logDir, "execution-log.jsonl"),
       this.config.max_active_entries,
       this.config.max_archives,
       this.config.compress_archives,
@@ -161,6 +169,21 @@ export class ServerCommandsRTK {
             required: ["path", "content_b64"],
           },
         },
+        {
+          name: "resolve_uri",
+          description:
+            "Resolve a scheme:// URI to an absolute file path. Uses schemes registered via MCP_RESOURCE_ROOTS env var (headquarters://, vaults://, etc.). scheme://. resolves to the base directory.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              uri: {
+                type: "string",
+                description: "URI to resolve, e.g. headquarters://docs/api.md or vaults://.",
+              },
+            },
+            required: ["uri"],
+          },
+        },
       ],
     }));
 
@@ -242,6 +265,8 @@ export class ServerCommandsRTK {
               ],
             };
           }
+          case "resolve_uri":
+            return this.handleResolveUri(args);
           case "write_file":
             return this.handleWriteFile(args);
           default:
@@ -250,19 +275,45 @@ export class ServerCommandsRTK {
       },
     );
 
-    const homeDir = process.env.HOME || "/home/ev3lynx";
+    const uriConfigPath = expandHome("~/.config/uri-resolver/config.toml");
+    if (existsSync(uriConfigPath)) {
+      try {
+        const uriConfig = parse(readFileSync(uriConfigPath, "utf-8"));
+        const schemes = uriConfig.scheme as Array<{ name: string; path: string }> | undefined;
+        if (schemes) {
+          for (const s of schemes) {
+            if (!this.roots.find((e) => e.scheme === s.name)) {
+              const absolutePath = expandHome(s.path);
+              if (existsSync(absolutePath)) {
+                this.roots.push({
+                  scheme: s.name,
+                  path: s.path,
+                  absolutePath,
+                  source: "uri-resolver-config",
+                });
+              }
+            }
+          }
+        }
+      } catch {}
+    }
 
-    const raw = process.env.MCP_RESOURCE_ROOTS
-      || '{"headquarters": "~/headquarters"}';
+    const raw = process.env.MCP_RESOURCE_ROOTS || "{}";
 
     let roots: Record<string, string> = {};
-    try { roots = JSON.parse(raw) } catch { roots = { headquarters: "~/headquarters" } }
+    try { roots = JSON.parse(raw) } catch { roots = {} }
 
-    const resolvedRoots: { scheme: string; dir: string }[] = [];
     for (const [scheme, dir] of Object.entries(roots)) {
-      const resolved = dir.startsWith("~/") ? path.join(homeDir, dir.slice(2)) : dir;
-      if (existsSync(resolved)) {
-        resolvedRoots.push({ scheme, dir: resolved });
+      if (!this.roots.find((e) => e.scheme === scheme)) {
+        const absolutePath = expandHome(dir);
+        if (existsSync(absolutePath)) {
+          this.roots.push({
+            scheme,
+            path: dir,
+            absolutePath,
+            source: "MCP_RESOURCE_ROOTS",
+          });
+        }
       }
     }
 
@@ -274,10 +325,10 @@ export class ServerCommandsRTK {
     this.server.setRequestHandler(
       ListResourceTemplatesRequestSchema,
       () => ({
-        resourceTemplates: resolvedRoots.map(({ scheme, dir }) => ({
+        resourceTemplates: this.roots.map(({ scheme, absolutePath }) => ({
           uriTemplate: `${scheme}://{path}`,
           name: `${scheme}:// resource`,
-          description: `Access documents from ${dir} by path (e.g. ${scheme}://path/to/file.md)`,
+          description: `Access documents from ${absolutePath} by path (e.g. ${scheme}://path/to/file.md)`,
           mimeType: "text/markdown",
         })),
       }),
@@ -288,15 +339,15 @@ export class ServerCommandsRTK {
       async (request) => {
         const uri = request.params.uri;
 
-        const matched = resolvedRoots.find((r) =>
+        const matched = this.roots.find((r) =>
           uri.startsWith(`${r.scheme}://`)
         );
         if (!matched) {
           throw new Error(`Unsupported URI scheme: ${uri}`);
         }
 
-        const filePath = path.join(matched.dir, uri.slice(matched.scheme.length + 3));
-        if (!filePath.startsWith(matched.dir)) {
+        const filePath = path.join(matched.absolutePath, uri.slice(matched.scheme.length + 3));
+        if (!filePath.startsWith(matched.absolutePath)) {
           throw new Error(`Path traversal denied: ${uri}`);
         }
 
@@ -418,6 +469,28 @@ export class ServerCommandsRTK {
             null,
             2,
           ),
+        },
+      ],
+    };
+  }
+
+  private handleResolveUri(
+    args: Record<string, unknown> | undefined,
+  ) {
+    const { uri } = ResolveUriArgs.parse(args);
+    const result = resolveUri(uri, this.roots);
+    if (!result) {
+      const schemes = listSchemes(this.roots)
+        .map(s => s.scheme)
+        .join(", ");
+      throw new Error(`Unknown URI scheme: ${uri}. Supported: ${schemes}`);
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
         },
       ],
     };
