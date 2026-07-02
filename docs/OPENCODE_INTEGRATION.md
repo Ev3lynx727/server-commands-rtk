@@ -216,7 +216,7 @@ Expected response:
 
 Clear the cache and restart:
 ```bash
-rm ~/server/server-commands-rtk/.command-cache.json
+rm ~/.local/share/state/server-commands-rtk/command-cache.json
 ```
 
 The cache file is auto-recreated on the next command. Corruption is handled gracefully — the server logs a warning and starts fresh.

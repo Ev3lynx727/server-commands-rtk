@@ -5,9 +5,10 @@ MCP server that executes shell commands via MCP tools - with streaming spawn, au
 - **Streaming spawn** - uses `spawn` (not `exec`), no `maxBuffer` ceiling, pipes stdout/stderr directly
 - **Auto-RTK** - transparently wraps commands with RTK for ~90% token reduction
 - **Timeout + cancellation** - `AbortController` cancels stream collection immediately, `SIGKILL` terminates process tree
-- **Persistent cache** - results cached in `.command-cache.json` across sessions
+- **Persistent cache** - results cached in `~/.local/share/state/server-commands-rtk/command-cache.json` across sessions
 - **Execution logger** - append-only JSONL with auto-rotation, gzip compression, archive listing
 - **Safe file writes** - `write_file` with base64 content avoids JSON serialization breakage on special characters
+- **URI resolver** - `resolve_uri` resolves `scheme://path` to absolute file paths via shared TOML config
 
 ## Requirements
 
@@ -48,6 +49,7 @@ Add to OpenCode config:
 | `execution_log` | Read execution log entries, optionally from archives |
 | `list_archives` | List rotated `.jsonl.gz` archive files |
 | `write_file` | Write a file from base64 content (safe for special characters) |
+| `resolve_uri` | Resolve `scheme://path` to absolute file path via TOML config or `MCP_RESOURCE_ROOTS` |
 
 ## Usage
 
@@ -100,6 +102,18 @@ write_file({
 })
 ```
 
+### resolve_uri
+
+```javascript
+resolve_uri({uri: "headquarters://."})
+// { scheme: "headquarters", relativePath: ".", absolutePath: "/home/ev3lynx/headquarters" }
+
+resolve_uri({uri: "datasets://train/run-001.parquet"})
+// { scheme: "datasets", relativePath: "train/run-001.parquet", absolutePath: "/home/ev3lynx/datasets/memory-graph/train/run-001.parquet" }
+```
+
+Schemes are loaded from `~/.config/uri-resolver/config.toml` (primary) with `MCP_RESOURCE_ROOTS` as fallback. `scheme://.` resolves to the base directory.
+
 ### list_archives
 
 ```javascript
@@ -132,28 +146,43 @@ compress_archives = true
 debounce_ms = 2000
 ```
 
-## Cache
+## State Files
 
-- **File**: `.command-cache.json` - persistent JSON, survives server restart
+All runtime state lives under `~/.local/share/state/server-commands-rtk/`:
+
+```
+~/.local/share/state/server-commands-rtk/
+├── command-cache.json      # Persistent command cache
+└── execution-log.jsonl     # Append-only execution log
+```
+
+Created automatically on first run (`mkdirSync` with `recursive: true`).
+
+### Cache
+
+- **File**: `command-cache.json` - persistent JSON, survives server restart
 - **Key**: SHA-256 hash of `(command + cwd)`
 - **Stats**: Hit/miss counters via `get_cache_stats`
 - **Flush**: Written to disk on every mutation + on SIGTERM/SIGINT
 
-## Execution Log
+### Execution Log
 
-- **File**: `.execution-log.jsonl` - append-only, one JSON object per line
-- **Rotation**: When `max_log_entries` reached, current log moves to `.execution-log.archives/` and compresses (if enabled)
+- **File**: `execution-log.jsonl` - append-only, one JSON object per line
+- **Rotation**: When `max_log_entries` reached, half of entries archived. Rotated files land alongside the active log as `execution-log-{timestamp}.jsonl.gz`
 - **Per-entry metadata**: `timestamp`, `key`, `command`, `rtk_filtered`, `cached`, `success`, `exitCode`, `duration_ms`, `error_type`, `stdout`/`stderr`, `stdout_lines`/`stderr_lines`, `model_used`
 
-## MCP Resources
+## MCP Resources & URI Resolution
 
-Configured via `MCP_RESOURCE_ROOTS` env var:
+Resource templates and URI resolution share a unified scheme registry loaded from two sources (TOML wins):
+
+1. **Primary**: `~/.config/uri-resolver/config.toml` — shared with the standalone uri-resolver MCP server
+2. **Fallback**: `MCP_RESOURCE_ROOTS` env var — for deployment-specific overrides
 
 ```bash
 export MCP_RESOURCE_ROOTS='{"headquarters": "~/headquarters"}'
 ```
 
-Registers a resource template `headquarters://{path}` resolving to `~/headquarters/{path}`. Path traversal is denied.
+Each scheme registers a resource template `{scheme}://{path}` and is queryable via the `resolve_uri` tool. Path traversal is denied via `startsWith()` guard.
 
 ## Response Format
 
@@ -195,7 +224,7 @@ Timeout returns `exitCode: 124` with message in `stderr`.
 |----------|----------|-------------|
 | `SERVER_DIR` | No | Custom server root (defaults to directory containing `dist/`) |
 | `RTK_MODEL_USED` | No | Override for `model_used` in execution log metadata |
-| `MCP_RESOURCE_ROOTS` | No | JSON object mapping scheme names to directory paths |
+| `MCP_RESOURCE_ROOTS` | No | JSON object mapping scheme names to directory paths (fallback, TOML config is primary) |
 | `LOG_LEVEL` | No | Log level (`error`, `warn`, `info`, `debug`) |
 
 ## License

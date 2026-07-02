@@ -128,7 +128,7 @@ debounce_ms = 2000
 
 ### For Training Data Export
 
-1. **Single source** — `.execution-log.jsonl` has full stdout/stderr
+1. **Single source** — `~/.local/share/state/server-commands-rtk/execution-log.jsonl` has full stdout/stderr
 2. **Filter by model** — Use `model_used` field to segment
 
 ---

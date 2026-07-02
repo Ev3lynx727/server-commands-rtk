@@ -109,3 +109,9 @@ export const WriteFileResult = z.object({
 });
 
 export type WriteFileResult = z.infer<typeof WriteFileResult>;
+
+export const ResolveUriArgs = z.object({
+  uri: z.string().min(1, "uri is required"),
+});
+
+export type ResolveUriArgs = z.infer<typeof ResolveUriArgs>;

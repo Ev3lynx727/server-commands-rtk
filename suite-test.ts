@@ -15,7 +15,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, unlinkSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { randomBytes } from "node:crypto";
 
 const SERVER_SCRIPT = resolve(import.meta.dirname, "dist/index.js");
@@ -404,7 +404,7 @@ async function benchmarkTests() {
 
 async function resilienceTests() {
   await runTest("resilience: cache corruption recovery", async () => {
-    const cacheFile = join(SERVER_DIR, ".command-cache.json");
+    const cacheFile = join(homedir(), ".local/share/state/server-commands-rtk/command-cache.json");
     const original = existsSync(cacheFile) ? readFileSync(cacheFile, "utf8") : "";
     try {
       writeFileSync(cacheFile, "corrupted garbage data");

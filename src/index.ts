@@ -3,7 +3,7 @@ import { ServerCommandsRTK } from "./server.js";
 
 function printHelp(): void {
   const help = [
-    "Server-Commands-RTK v0.2.2 — MCP Server with RTK Caching",
+    "Server-Commands-RTK v0.3.0 — MCP Server with RTK Caching",
     "",
     "Usage:",
     "  node dist/index.js              Run MCP server",
@@ -18,10 +18,12 @@ function printHelp(): void {
     "  execution_log        - Get execution log (last N entries, with --include_archives flag)",
     "  list_archives        - List rotated log archives for dataset pipeline",
     "  write_file           - Write file with base64 content (avoids JSON parse issues)",
+    "  resolve_uri          - Resolve scheme:// URI to absolute file path",
     "",
     "Environment:",
-    "  SERVER_DIR     - Path to server directory (default: parent of dist/)",
-    "  RTK_MODEL_USED - Model name override (default: auto-detected from client)",
+    "  SERVER_DIR        - Path to server directory (default: parent of dist/)",
+    "  RTK_MODEL_USED    - Model name override (default: auto-detected from client)",
+    "  MCP_RESOURCE_ROOTS - JSON scheme-to-dir map (fallback, TOML config is primary)",
   ].join("\n");
   console.log("\n" + help + "\n");
 }
@@ -33,10 +35,9 @@ if (process.argv.includes("--help") || process.argv.includes("-h")) {
 
 if (process.argv.includes("--stats")) {
   const { readFileSync, existsSync } = await import("node:fs");
-  const { resolve, dirname } = await import("node:path");
-  const { fileURLToPath } = await import("node:url");
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-  const cacheFile = resolve(__dirname, "..", ".command-cache.json");
+  const { resolve } = await import("node:path");
+  const { homedir } = await import("node:os");
+  const cacheFile = resolve(homedir(), ".local/share/state/server-commands-rtk/command-cache.json");
   if (existsSync(cacheFile)) {
     try {
       const data = JSON.parse(readFileSync(cacheFile, "utf8"));
