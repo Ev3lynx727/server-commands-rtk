@@ -24,7 +24,7 @@ import { parse } from "smol-toml";
 import { CommandCache } from "./cache.js";
 import { ExecutionLogger } from "./logger.js";
 import { executeCommand } from "./executor.js";
-import { prependRtk } from "./rtk.js";
+import { tryRewrite } from "./rtk.js";
 import { categorizeError } from "./errors.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -94,6 +94,12 @@ export class ServerCommandsRTK {
                 default: true,
                 description:
                   "Auto-wrap with RTK for token-minimized output (default: true)",
+              },
+              rtk_compact: {
+                type: "boolean",
+                default: false,
+                description:
+                  "Ultra-compact RTK mode: ASCII icons, inline format (extra token savings)",
               },
               use_raw: {
                 type: "boolean",
@@ -388,8 +394,9 @@ export class ServerCommandsRTK {
       ? false
       : parsed.use_rtk_filter !== false;
 
-    const execCommand = prependRtk(parsed.command, {
+    const { command: execCommand, rewritten } = tryRewrite(parsed.command, {
       useRtk,
+      compact: parsed.rtk_compact ?? false,
     });
     const key = this.cache.hash(execCommand, parsed.cwd);
     const cached = this.cache.get(key);
@@ -407,6 +414,7 @@ export class ServerCommandsRTK {
                 command: cached.raw_command || execCommand,
                 result: cached.result,
                 rtk_filtered: useRtk,
+                rtk_rewritten: cached.rtk_rewritten,
               },
               null,
               2,
@@ -429,6 +437,7 @@ export class ServerCommandsRTK {
       command: execCommand,
       raw_command: parsed.command,
       rtk_filtered: useRtk,
+      rtk_rewritten: rewritten,
       model_used: model,
     });
 
@@ -438,6 +447,7 @@ export class ServerCommandsRTK {
       command: parsed.command,
       command_exec: execCommand,
       rtk_filtered: useRtk,
+      rtk_rewritten: rewritten,
       cached: !!cached,
       success: result.success,
       exitCode: result.exitCode,
@@ -465,6 +475,7 @@ export class ServerCommandsRTK {
               command: parsed.command,
               result,
               rtk_filtered: useRtk,
+              rtk_rewritten: rewritten,
             },
             null,
             2,

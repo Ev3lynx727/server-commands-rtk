@@ -6,6 +6,7 @@ export const RunProcessArgs = z.object({
   description: z.string().optional(),
   clear_cache: z.boolean().default(false),
   use_rtk_filter: z.boolean().default(true),
+  rtk_compact: z.boolean().default(false),
   use_raw: z.boolean().default(false),
   model_used: z.string().optional(),
   timeout_ms: z.number().int().positive().optional(),
@@ -61,6 +62,7 @@ export const CacheEntry = z.object({
   command: z.string(),
   raw_command: z.string(),
   rtk_filtered: z.boolean(),
+  rtk_rewritten: z.boolean().default(false),
   model_used: z.string(),
 });
 
@@ -82,6 +84,7 @@ export const ExecutionLogEntry = z.object({
   command: z.string(),
   command_exec: z.string(),
   rtk_filtered: z.boolean(),
+  rtk_rewritten: z.boolean(),
   cached: z.boolean(),
   success: z.boolean(),
   exitCode: z.number(),

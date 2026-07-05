@@ -133,7 +133,7 @@ debounce_ms = 2000
 | `max_log_entries` | 1000 | Max JSONL log entries kept |
 | `debounce_ms` | 2000 | Cache disk write debounce interval |
 
-Legacy sections (`[hook]`, `[rtk]`, `[commands.*]`) from v0.1.0 are **removed** — v0.2.0 applies uniform `rtk` prefix to all commands via `prependRtk()`. Per-command wrappers are no longer needed.
+Legacy sections (`[hook]`, `[rtk]`, `[commands.*]`) from v0.1.0 are **removed** — v0.2.0+ uses `rtk rewrite` for smart command dispatch via `tryRewrite()`. Per-command wrappers are no longer needed.
 
 ---
 

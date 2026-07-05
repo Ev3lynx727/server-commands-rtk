@@ -55,7 +55,7 @@ State files: ~/.local/share/state/server-commands-rtk/
 | `src/cache.ts` | SHA-256 hashed command cache with 2s debounced JSON persistence |
 | `src/logger.ts` | Append-only JSONL execution log: auto-rotate, gzip archive, archive listing |
 | `src/config.ts` | TOML loader via smol-toml: execution config + log config |
-| `src/rtk.ts` | RTK prefix prepender: prependRtk() |
+| `src/rtk.ts` | RTK rewrite integration: tryRewrite() — calls `rtk rewrite` subprocess for smart command dispatch |
 | `src/errors.ts` | Error categorizer: 7 patterns matched against stderr+stdout |
 | `rtk-hook.toml` | Config: timeout, buffer, debounce |
 | `~/.local/share/state/server-commands-rtk/command-cache.json` | Persistent cache file (auto-created) |
@@ -77,7 +77,7 @@ interface ResolveUriArgs { uri: string; }
 
 // Core types
 interface ExecResult { success: boolean; stdout: string; stderr: string; exitCode: number; duration_ms: number; error_type: ErrorCategory | null; }
-interface CacheEntry { result: ExecResult; timestamp: number; command: string; raw_command: string; rtk_filtered: boolean; model_used: string; }
+interface CacheEntry { result: ExecResult; timestamp: number; command: string; raw_command: string; rtk_filtered: boolean; rtk_rewritten: boolean; model_used: string; }
 interface ExecutionLogEntry extends CacheEntry { key: string; cached: boolean; stdout_lines: number; stderr_lines: number; }
 type ErrorCategory = "permission_error" | "not_found" | "timeout" | "syntax_error" | "network_error" | "memory_error" | "unknown_error";
 
@@ -91,7 +91,7 @@ interface ServerConfig { timeout_ms: number; max_buffer_mb: number; max_log_entr
 Agent call -> handleRunProcess(args)
   |-> Zod parse & validate RunProcessArgs
   |-> Resolve model_used (arg > env > client name > "unknown")
-  |-> prependRtk() -> adds "rtk " prefix (unless use_raw: true)
+  |-> tryRewrite() -> calls `rtk rewrite <cmd>` for smart dispatch (falls back to raw if rtk unavailable)
   |-> hash(command + cwd) -> SHA-256 16-char hex key
   |-> cache lookup (hit? -> return cached + recordHit)
   |-> executeCommand(spawn, timeout, buffer limit)

@@ -6,6 +6,11 @@ import { gzipSync, gunzipSync } from "node:zlib";
 import { join, dirname, basename } from "node:path";
 import type { ExecutionLogEntry } from "./schemas.js";
 
+function normalizeEntry(e: Record<string, unknown>): ExecutionLogEntry {
+  if (e.rtk_rewritten === undefined) e.rtk_rewritten = false
+  return e as ExecutionLogEntry
+}
+
 export class ExecutionLogger {
   private readonly filePath: string;
   private readonly maxActive: number;
@@ -114,7 +119,7 @@ export class ExecutionLogger {
           const raw = readFileSync(join(dir, a));
           const content = a.endsWith(".gz") ? gunzipSync(raw).toString("utf8") : raw.toString("utf8");
           for (const line of content.split("\n").filter(Boolean)) {
-            all.push(JSON.parse(line));
+            all.push(normalizeEntry(JSON.parse(line)));
           }
         }
       }
@@ -124,7 +129,7 @@ export class ExecutionLogger {
           .split("\n")
           .filter(Boolean);
         for (const line of lines) {
-          all.push(JSON.parse(line));
+          all.push(normalizeEntry(JSON.parse(line)));
         }
       }
 

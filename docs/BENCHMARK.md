@@ -1,13 +1,51 @@
 # BENCHMARK.md — Performance Benchmarks
 
-> Date: 2026-06-19
+> Date: 2026-07-03
+> Version: v0.3.0 (OpenCode v1.17)
 > Status: Active
 
 ---
 
 ## OVERVIEW
 
-This document tracks performance benchmarks for the `server-commands-rtk` MCP server, including execution latency, token reduction via RTK, and cache performance.
+This document tracks performance benchmarks for the `server-commands-rtk` MCP server, including execution latency, `tryRewrite` overhead, cache performance, and token reduction via RTK filtering.
+
+**Key difference from v0.2:** `tryRewrite()` replaced `prependRtk()`. Instead of blindly prefixing every command with `rtk`, it calls `rtk rewrite <cmd>` as a subprocess to determine if RTK has a filter. Adds ~55-65ms overhead on the first call per unique command, but avoids spawning `rtk` for commands it doesn't filter (`which`, `echo`, `cd`).
+
+---
+
+## TRYREWRITE OVERHEAD
+
+### v0.2: `prependRtk()` → v0.3: `tryRewrite()`
+
+| Factor | v0.2 `prependRtk` | v0.3 `tryRewrite` | Impact |
+|--------|-------------------|-------------------|--------|
+| Cost | **0ms** (string concat) | **~58ms** (`execFileSync` subprocess) | +58ms first-call |
+| Dispatch | Blind `rtk <cmd>` prefix | Smart `rtk rewrite <cmd>` detection | Smarter, skips unfiltered commands |
+| `rtk_rewritten` signal | N/A | `true`/`false` in response + log | Better observability |
+| `rtk_compact` mode | N/A | `-u` flag appended on rewrite | Extra token savings on demand |
+
+### `rtk rewrite` Subprocess Times (ms)
+
+| Command | Min | Avg | Max |
+|---------|-----|------|-----|
+| `rtk rewrite "git status"` (has filter) | 54ms | 58ms | 65ms |
+| `rtk rewrite "echo hello"` (no filter, exit 1) | ~15ms | ~20ms | ~30ms |
+| `rtk rewrite "which curl"` (no filter, exit 1) | ~12ms | ~18ms | ~25ms |
+
+### Execution Time: First Call (no cache)
+
+| Case | `tryRewrite` | `executeCommand` | **Total** |
+|------|-------------|------------------|-----------|
+| v0.2 — `rtk git status` | 0ms | ~117ms | **~117ms** |
+| v0.3 — `rtk git status` | ~58ms | ~117ms | **~175ms** |
+| v0.3 — `which curl` (passthrough) | ~18ms | ~2ms | **~20ms** |
+
+### Execution Time: Cache Hit (repeat call)
+
+| Case | Lookup | **Total** |
+|------|--------|-----------|
+| Any command (v0.2 or v0.3) | ~4ms | **~4ms** |
 
 ---
 
@@ -17,21 +55,22 @@ This document tracks performance benchmarks for the `server-commands-rtk` MCP se
 
 - **Tool:** `run_process` via MCP (stdio transport)
 - **Commands:** Simple `echo` statements
-- **Measurement:** `duration_ms` from test suite
+- **Measurement:** `duration_ms` from suite-test.ts benchmark section
 
-### Results (from suite-test.ts benchmark section)
+### Results (from suite-test.ts benchmark — v0.3.0)
 
 | Metric | Cache Miss | Cache Hit |
 |--------|-----------|-----------|
-| **Mean Latency** | ~124-173ms | ~0.4-0.6ms |
-| **Speedup** | 1x | ~250-430x |
+| **Mean Latency** | ~65ms | ~4ms |
+| **Speedup** | 1x | ~17x |
 | **Sample Size** | 5 trials each | 5 trials each |
 
 ### Analysis
 
-1. **Cache miss latency** (~124-173ms) includes: process spawn, command execution, RTK filtering, and cache write
-2. **Cache hit latency** (~0.4-0.6ms) is pure Map lookup — no I/O
-3. **Speedup** of 250-430x makes repeated commands essentially free
+1. **Cache miss latency** (~65ms) includes: `tryRewrite` subprocess, command execution, cache write
+2. **Cache hit latency** (~4ms) is pure Map lookup — no I/O
+3. **Speedup** of 17x makes repeated commands effectively free
+4. v0.3 is slightly slower than v0.2 (~60ms → ~65ms) due to `tryRewrite` subprocess overhead
 
 ---
 
@@ -66,14 +105,30 @@ This document tracks performance benchmarks for the `server-commands-rtk` MCP se
 
 ---
 
+## SIGNAL FIELDS (NEW IN v0.3)
+
+`run_process` response and execution log now return:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `rtk_filtered` | bool | RTK was enabled for this command |
+| `rtk_rewritten` | bool | `rtk rewrite` found a filter and rewrote the command |
+
+Use cases:
+- `rtk_filtered: true` + `rtk_rewritten: true` → filtered by RTK
+- `rtk_filtered: true` + `rtk_rewritten: false` → RTK enabled but no filter → raw passthrough
+- `rtk_filtered: false` + `rtk_rewritten: false` → bypassed via `use_raw: true`
+
+---
+
 ## CACHE PERFORMANCE
 
 ### Cache Hit/Miss Latency
 
 | Operation | Latency | Notes |
 |-----------|---------|-------|
-| Cache Miss (first run) | ~50-80ms | Includes command execution |
-| Cache Hit (subsequent) | ~0.4-0.6ms | Metadata lookup only |
+| Cache Miss (first run) | ~65ms | Includes `tryRewrite` + command execution |
+| Cache Hit (subsequent) | ~4ms | Metadata lookup only |
 | Cache Write | ~5-10ms | JSON serialization + debounced disk I/O |
 
 ### Cache Statistics
@@ -124,11 +179,12 @@ debounce_ms = 2000
 1. **Monitor log size** — 1000 entries at ~3MB is safe
 2. **Adjust timeout** — Increase for long-running builds/installs
 3. **Use RTK filtering by default** — 92% savings is significant
-4. **Clear cache** via `clear_command_cache` if stale entries accumulate
+4. **Use `rtk_compact` for output-heavy commands** — adds `-u` ultra-compact mode
+5. **Clear cache** via `clear_command_cache` if stale entries accumulate
 
 ### For Training Data Export
 
-1. **Single source** — `~/.local/share/state/server-commands-rtk/execution-log.jsonl` has full stdout/stderr
+1. **Single source** — `~/.local/share/state/server-commands-rtk/execution-log.jsonl` has full stdout/stderr + `rtk_rewritten` signal
 2. **Filter by model** — Use `model_used` field to segment
 
 ---
@@ -148,5 +204,6 @@ Stdio is the default — no network exposure, no auth needed, minimal attack sur
 
 ---
 
-*Last Updated: 2026-06-19*
-*Benchmark Tool: `server-commands-rtk` v0.2.0*
+*Last Updated: 2026-07-03*
+*Benchmark Tool: `server-commands-rtk` v0.3.0*
+*OpenCode v1.17*

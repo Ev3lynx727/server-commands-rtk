@@ -169,7 +169,7 @@ Created automatically on first run (`mkdirSync` with `recursive: true`).
 
 - **File**: `execution-log.jsonl` - append-only, one JSON object per line
 - **Rotation**: When `max_log_entries` reached, half of entries archived. Rotated files land alongside the active log as `execution-log-{timestamp}.jsonl.gz`
-- **Per-entry metadata**: `timestamp`, `key`, `command`, `rtk_filtered`, `cached`, `success`, `exitCode`, `duration_ms`, `error_type`, `stdout`/`stderr`, `stdout_lines`/`stderr_lines`, `model_used`
+- **Per-entry metadata**: `timestamp`, `key`, `command`, `rtk_filtered`, `rtk_rewritten`, `cached`, `success`, `exitCode`, `duration_ms`, `error_type`, `stdout`/`stderr`, `stdout_lines`/`stderr_lines`, `model_used`
 
 ## MCP Resources & URI Resolution
 
@@ -201,7 +201,8 @@ All tools return JSON:
     "duration_ms": 12,
     "error_type": null
   },
-  "rtk_filtered": true
+  "rtk_filtered": true,
+  "rtk_rewritten": true
 }
 ```
 
