@@ -1,5 +1,8 @@
 # server-commands-rtk
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![npm version](https://img.shields.io/npm/v/server-commands-rtk)](https://www.npmjs.com/package/server-commands-rtk)
+
 MCP server that executes shell commands via MCP tools - with streaming spawn, automatic RTK token reduction, persistent caching, and full execution logging.
 
 - **Streaming spawn** - uses `spawn` (not `exec`), no `maxBuffer` ceiling, pipes stdout/stderr directly
