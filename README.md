@@ -92,46 +92,9 @@ For MCP clients (Claude Desktop, Cursor, VSCode, etc):
 
 How commands-rtk processes an MCP tool call:
 
-```
-                          commands-rtk MCP Server
-  ┌──────────────────────────────────────────────────────────┐
-  │                                                          │
-  │  MCP Client              commands-rtk                    │
-  │  (OpenCode,               MCP Server                     │
-  │   Claude,      ────────  ┌──────────┐                   │
-  │   Cursor)      JSON-RPC  │ server.ts │                  │
-  │      │          stdin     │           │                  │
-  │      │  tools/call        │  Zod      │                  │
-  │      │  run_process ─────→│  .parse() │                  │
-  │      │  "ls -la"          └────┬──────┘                  │
-  │      │                         │                         │
-  │      │                         ▼                         │
-  │      │                  ┌──────────────┐                │
-  │      │                  │ executor.ts  │                │
-  │      │                  │              │                │
-  │      │                  │  spawn(      │                │
-  │      │                  │   "/bin/sh", │                │
-  │      │                  │   ["rtk ls   │──→ rtk CLI     │
-  │      │                  │    -la"])    │    filters     │
-  │      │                  │              │    output      │
-  │      │                  └──────┬───────┘                │
-  │      │                         │                         │
-  │      │                         ├── cache.ts ── upsert    │
-  │      │                         ├── logger.ts ── append   │
-  │      │                         ▼                         │
-  │      │  JSON-RPC         ┌──────────┐                   │
-  │      │  response ←───────│ server.ts│                   │
-  │      │  stdout           │  return   │                  │
-  │      │                   └──────────┘                   │
-  │                                                          │
-  │  State: ~/.local/share/state/commands-rtk/               │
-  │  ├── command-cache.json   (SHA-256 keyed)               │
-  │  └── execution-log.jsonl  (append-only, rolls)           │
-  │                                                          │
-  └──────────────────────────────────────────────────────────┘
-```
+![commands-rtk MCP Server Schema](.assets/schema.svg)
 
-The dotted flow: `server.ts` receives `tools/call` → `Zod.parse()` validates → `executor.ts` spawns with `rtk` prefix → result cached + logged → JSON-RPC response returned.
+The flow: `server.ts` receives `tools/call` → `Zod.parse()` validates → `executor.ts` spawns with `rtk` prefix → result cached + logged → JSON-RPC response returned.
 
 ## Usage
 
