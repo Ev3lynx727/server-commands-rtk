@@ -48,28 +48,30 @@ No subprocess overhead — string concat only.
 
 | Metric | Value |
 |--------|-------|
-| **Total Commands** | 3,089 |
-| **Input Tokens** | 8.2M |
-| **Output Tokens** | 651.7K |
-| **Tokens Saved** | 7.5M (92.0%) |
-| **Total Exec Time** | 132m10s (avg 2.6s) |
+| **Total Commands** | 4,493 |
+| **Input Tokens** | 16.2M |
+| **Output Tokens** | 4.4M |
+| **Tokens Saved** | 11.8M (73.0%) |
+| **Total Exec Time** | 606m9s (avg 8.1s) |
 
 ### By Command Type
 
 | Command | Count | Savings | Avg% | Notes |
 |---------|-------|---------|------|-------|
-| `rtk curl` (API calls) | 6 | ~6.6M | 99.4% | JSON/HTML responses compress heavily |
-| `rtk find` | 51 | 190.2K | 59.1% | File listings |
-| `rtk git status` | 13 | 127.4K | 63.4% | Structured output |
-| `rtk tsc --noEmit` | 7 | 92.8K | 33.9% | Error/warning dense |
-| `rtk read` | 15 | 76.9K | 18.5% | Dense text |
-| `rtk:toml ps aux` | 31 | 114.9K | 80.6% | Process lists |
+| `rtk curl` (API calls) | 5 | ~6.5M | 99.5% | JSON/HTML responses compress heavily |
+| `rtk grep` | 66 | 2.1M | 16.0% | Dense search output |
+| `rtk read` | 62 | 2.0M | 38.7% | Dense text |
+| `rtk find` | 61 | 190.2K | 53.2% | File listings |
+| `rtk ps aux` | 60 | 201.4K | 79.1% | Process lists |
+| `rtk git commit` | 39 | 152.9K | 84.2% | Structured output |
+| `rtk git status` | 20 | 127.6K | 59.2% | Structured output |
 
 ### Observations
 
-- **High token commands** (curl, find) see 59-99% reduction
-- **Dense output** (read, tsc) sees modest 18-34% reduction but still worthwhile
-- **Overall 92%** savings means ~13x effective context multiplier
+- **High token commands** (curl) see 99%+ reduction — JSON responses compress heavily
+- **Text search** (grep) sees modest 16% reduction but high absolute savings (2.1M tokens)
+- **Overall 73%** savings — 4,493 commands tracked globally, 573 via commands-rtk `run_process`
+- commands-rtk execution log matches RTK schema: 573 entries, no stale fields in recent records
 
 ---
 

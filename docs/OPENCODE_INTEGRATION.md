@@ -27,7 +27,7 @@ The legacy `rtk.ts` plugin (`~/.config/opencode/plugins/rtk.ts`) has been **disa
 │  │  Transport: stdio (local child process)                       │  │
 │  │  Tools: run_process, get_cache_stats, clear_command_cache,    │  │
 │  │         cached_commands, execution_log                        │  │
-│  │  RTK: System hook (rtk init -g) filters at shell level       │  │
+│  │  RTK: Auto-prefixed via executor.ts for external commands    │  │
 │  │  Cache: SHA256-keyed, 2s debounced disk sync                 │  │
 │  │  Log: JSONL append-only execution log                         │  │
 │  └─────────────────────────────────────────────────────────────┘  │
@@ -139,7 +139,7 @@ Legacy sections (`[hook]`, `[rtk]`, `[commands.*]`) from v0.1.0 are **removed** 
 
 ## RTK WRAPPING BEHAVIOR
 
-All commands run through `run_process` execute raw via `/bin/sh -c`. RTK filtering is handled by the system hook (`rtk init -g`) at the shell level — add `rtk` prefix to any command for token minimization (e.g. `rtk ls -la`). See AGENTS.md → RTK Token Optimization section.
+All commands run through `run_process` execute via `/bin/sh -c`. RTK filtering is applied automatically via executor.ts — external commands (git, docker, npm, ls, find...) get the `rtk` prefix; shell builtins (`cd`, `exit`, `export`...) and compound commands (`&&`, `|`, `;`) skip it. No manual prefix needed.
 
 ### Controlling RTK
 
