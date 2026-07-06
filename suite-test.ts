@@ -154,25 +154,11 @@ async function runSection(title: string, fn: () => Promise<void>): Promise<void>
 // ===========================================================================
 
 async function unitTests() {
-  const { tryRewrite } = await import("./dist/rtk.js");
   const { categorizeError } = await import("./dist/errors.js");
   const { RunProcessArgs, ServerConfig } = await import("./dist/schemas.js");
   const { loadConfig } = await import("./dist/config.js");
 
   const tests = [
-    ["rtk: pass through when useRtk=false", () => {
-      const r = tryRewrite("ls -la", { useRtk: false, compact: false });
-      assert(r.command === "ls -la" && r.rewritten === false, "should pass through");
-    }],
-    ["rtk: rewrites known command when rtk is installed", () => {
-      const r = tryRewrite("git status", { useRtk: true, compact: false });
-      assert(r.rewritten === true, "git status should be rewriteable");
-      assert(r.command.startsWith("rtk "), "should prepend rtk");
-    }],
-    ["rtk: compact flag passed through", () => {
-      const r = tryRewrite("git status", { useRtk: true, compact: true });
-      assert(typeof r.command === "string" && typeof r.rewritten === "boolean", "should return valid structure");
-    }],
     ["errors: null on exitCode 0", () => {
       assert(categorizeError(0, "", "ok") === null, "exit 0 returns null");
     }],
@@ -194,8 +180,8 @@ async function unitTests() {
     ["schemas: RunProcessArgs default", () => {
       const p = RunProcessArgs.parse({ command: "ls" });
       assert(p.command === "ls", "cmd");
-      assert(p.use_rtk_filter === true, "rtk filter default");
-      assert(p.use_raw === false, "raw default");
+      assert(p.model_used === undefined, "model_used default");
+      assert(p.clear_cache === false, "clear_cache default");
     }],
     ["schemas: RunProcessArgs rejects empty", () => {
       try { RunProcessArgs.parse({ command: "" }); assert(false, "should throw"); }
@@ -204,7 +190,7 @@ async function unitTests() {
     ["schemas: RunProcessArgs all fields", () => {
       const p = RunProcessArgs.parse({
         command: "ls", cwd: "/tmp", description: "test",
-        clear_cache: true, use_rtk_filter: false, use_raw: true,
+        clear_cache: true, model_used: "test",
         model_used: "test-model",
       });
       assert(p.cwd === "/tmp", "cwd");
@@ -278,16 +264,16 @@ async function integrationTests() {
       assert(data.cached === true, "should be cached");
     });
 
-    await runTest("integration: non-zero exit (raw)", async () => {
-      const resp = await srv.send("exit 42", { use_raw: true });
+    await runTest("integration: non-zero exit", async () => {
+      const resp = await srv.send("exit 42");
       const parsed = JSON.parse(resp);
       const data = JSON.parse(parsed.result?.content?.[0]?.text || "{}");
       assert(data.result?.exitCode === 42, "exit code 42");
       assert(data.result?.success === false, "not success");
     });
 
-    await runTest("integration: command not found (raw)", async () => {
-      const resp = await srv.send("nonexistent-command-12345", { use_raw: true });
+    await runTest("integration: command not found", async () => {
+      const resp = await srv.send("nonexistent-command-12345");
       const parsed = JSON.parse(resp);
       const data = JSON.parse(parsed.result?.content?.[0]?.text || "{}");
       assert(data.result?.success === false, "not success");

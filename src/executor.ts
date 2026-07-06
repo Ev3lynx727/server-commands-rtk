@@ -80,6 +80,11 @@ export async function executeCommand(
     }
   }
 
+  const trimmed = command.trimStart();
+  const isBuiltin = /^(cd|pushd|popd|export|source|\.|set|unset|alias|unalias|exit|trap|exec|type)($|\s)/.test(trimmed);
+  const isCompound = /[;&|]/.test(trimmed.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g, ""));
+  const cmdLine = isBuiltin || isCompound ? command : "rtk " + command;
+
   let timedOut = false;
   let child: ChildProcess | null = null;
   const ac = new AbortController();
@@ -93,7 +98,7 @@ export async function executeCommand(
   }, opts.timeout_ms);
 
   try {
-    child = spawn("/bin/sh", ["-c", command], {
+    child = spawn("/bin/sh", ["-c", cmdLine], {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
     }) as ChildProcess;

@@ -7,7 +7,6 @@ import { join, dirname, basename } from "node:path";
 import type { ExecutionLogEntry } from "./schemas.js";
 
 function normalizeEntry(e: Record<string, unknown>): ExecutionLogEntry {
-  if (e.rtk_rewritten === undefined) e.rtk_rewritten = false
   return e as ExecutionLogEntry
 }
 

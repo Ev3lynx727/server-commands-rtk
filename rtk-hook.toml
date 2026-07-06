@@ -1,10 +1,16 @@
-# Execution settings for commands-rtk v0.2.0
-# The server wraps ALL commands with `rtk` for token minimization
-# unless `use_raw: true` is passed. Per-command wrapper config is
-# vestigial from v0.1.0 — v0.2.0 uses uniform RTK prefix.
+# Project-local RTK config override for commands-rtk v0.3.0
+# The RTK system hook (rtk init -g) handles command wrapping at the
+# shell level. This file overrides execution and logging settings
+# for this specific project — timeout, buffer, cache debounce, and
+# log rotation thresholds.
 
 [execution]
 timeout_ms = 60000
 max_buffer_mb = 10
 max_log_entries = 1000
 debounce_ms = 2000
+
+[log]
+max_active_entries = 1000
+max_archives = 10
+compress = true
