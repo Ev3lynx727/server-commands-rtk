@@ -27,7 +27,7 @@ The legacy `rtk.ts` plugin (`~/.config/opencode/plugins/rtk.ts`) has been **disa
 │  │  Transport: stdio (local child process)                       │  │
 │  │  Tools: run_process, get_cache_stats, clear_command_cache,    │  │
 │  │         cached_commands, execution_log                        │  │
-│  │  RTK: Auto-wraps commands (unless use_raw: true)             │  │
+│  │  RTK: System hook (rtk init -g) filters at shell level       │  │
 │  │  Cache: SHA256-keyed, 2s debounced disk sync                 │  │
 │  │  Log: JSONL append-only execution log                         │  │
 │  └─────────────────────────────────────────────────────────────┘  │
@@ -139,14 +139,14 @@ Legacy sections (`[hook]`, `[rtk]`, `[commands.*]`) from v0.1.0 are **removed** 
 
 ## RTK WRAPPING BEHAVIOR
 
-All commands run through `run_process` are automatically wrapped with `rtk` unless `use_raw: true` is set or `use_rtk_filter: false` is passed. The wrapper is a simple prefix — `rtk {command}` — which reuses RTK's existing rewrite registry for token minimization.
+All commands run through `run_process` execute raw via `/bin/sh -c`. RTK filtering is handled by the system hook (`rtk init -g`) at the shell level — add `rtk` prefix to any command for token minimization (e.g. `rtk ls -la`). See AGENTS.md → RTK Token Optimization section.
 
 ### Controlling RTK
 
 | Parameter | Effect |
 |-----------|--------|
-| `use_raw: true` | Bypasses RTK entirely — runs raw command |
-| `use_rtk_filter: false` | Disables RTK wrapping (but still uses cache) |
+| `model_used` | Model name metadata for execution log |
+| `model_used` | Model name metadata for training logs |
 | (default) | `rtk {command}` — auto-wrapped |
 
 ---

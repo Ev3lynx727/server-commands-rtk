@@ -55,9 +55,8 @@ State files: ~/.local/share/state/commands-rtk/
 | `src/cache.ts` | SHA-256 hashed command cache with 2s debounced JSON persistence |
 | `src/logger.ts` | Append-only JSONL execution log: auto-rotate, gzip archive, archive listing |
 | `src/config.ts` | TOML loader via smol-toml: execution config + log config |
-| `src/rtk.ts` | RTK rewrite integration: tryRewrite() — calls `rtk rewrite` subprocess for smart command dispatch |
 | `src/errors.ts` | Error categorizer: 7 patterns matched against stderr+stdout |
-| `rtk-hook.toml` | Config: timeout, buffer, debounce |
+| `rtk-hook.toml` | Config: [execution] (timeout, buffer, debounce) + [log] (rotation, compression) |
 | `~/.local/share/state/commands-rtk/command-cache.json` | Persistent cache file (auto-created) |
 | `~/.local/share/state/commands-rtk/execution-log.jsonl` | Append-only execution log (auto-created) |
 | `~/.config/uri-resolver/config.toml` | Shared scheme config (read on startup, optional) |
@@ -70,7 +69,7 @@ State files: ~/.local/share/state/commands-rtk/
 
 ```typescript
 // Tool input schemas
-interface RunProcessArgs { command: string; cwd?: string; clear_cache?: boolean; use_rtk_filter?: boolean; use_raw?: boolean; model_used?: string; timeout_ms?: number; }
+interface RunProcessArgs { command: string; cwd?: string; clear_cache?: boolean; model_used?: string; timeout_ms?: number; }
 interface WriteFileArgs { path: string; content_b64: string; }
 interface ExecutionLogArgs { limit: number; include_archives: boolean; }
 interface ResolveUriArgs { uri: string; }
@@ -199,21 +198,22 @@ Run all: `npx tsx suite-test.ts` (or `npm test`).
 - **zod v3→v4**: `error.flatten()` deprecated → `z.flattenError(err)`. `errorMap` → `error`.
 - **typescript v6**: Verify tsconfig compatibility before upgrading.
 
-## Config File: Actual vs Schema
+## Config Surface
 
-The `rtk-hook.toml` on disk only has the `[execution]` section (4 keys). The code supports a second `[log]` section with defaults:
+The `rtk-hook.toml` exposes all 7 config keys across two sections:
 
 ```toml
+# ~/server/commands-rtk/rtk-hook.toml
 [execution]
 timeout_ms = 60000
 max_buffer_mb = 10
 max_log_entries = 1000
 debounce_ms = 2000
 
-[log]            # optional — defaults apply if absent
+[log]
 max_active_entries = 1000
 max_archives = 10
 compress = true   # mapped to compress_archives in ServerConfig
 ```
 
-All 7 config keys merge into a flat `ServerConfig` Zod schema with defaults for any missing section.
+All 7 keys merge into a flat `ServerConfig` Zod schema. Defaults are applied per-key in `config.ts` if any value is absent.

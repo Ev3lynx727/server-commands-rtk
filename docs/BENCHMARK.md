@@ -117,7 +117,7 @@ This document tracks performance benchmarks for the `commands-rtk` MCP server, i
 Use cases:
 - `rtk_filtered: true` + `rtk_rewritten: true` → filtered by RTK
 - `rtk_filtered: true` + `rtk_rewritten: false` → RTK enabled but no filter → raw passthrough
-- `rtk_filtered: false` + `rtk_rewritten: false` → bypassed via `use_raw: true`
+- RTK filtering handled by system hook (`rtk init -g`) at shell level
 
 ---
 
@@ -159,6 +159,11 @@ timeout_ms = 60000
 max_buffer_mb = 10
 max_log_entries = 1000
 debounce_ms = 2000
+
+[log]
+max_active_entries = 1000
+max_archives = 10
+compress = true
 ```
 
 ### Impact of Settings

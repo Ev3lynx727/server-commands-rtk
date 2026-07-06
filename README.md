@@ -87,10 +87,10 @@ For MCP clients (Claude Desktop, Cursor, VSCode, etc):
 run_process({command: "ls -la"})
 
 // Bypass RTK filtering entirely
-run_process({command: "ls -la", use_raw: true})
+run_process({command: "ls -la"})
 
 // Explicitly enable/disable RTK
-run_process({command: "ls -la", use_rtk_filter: true})
+run_process({command: "ls -la"})
 
 // Override default timeout (60s) per call
 run_process({command: "sleep 30", timeout_ms: 5000})

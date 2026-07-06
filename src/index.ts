@@ -3,7 +3,7 @@ import { ServerCommandsRTK } from "./server.js";
 
 function printHelp(): void {
   const help = [
-    "Server-Commands-RTK v0.3.0 — MCP Server with RTK Caching",
+    "Commands-RTK v0.3.0 — MCP Server with command caching and file ops",
     "",
     "Usage:",
     "  node dist/index.js              Run MCP server",
@@ -11,7 +11,7 @@ function printHelp(): void {
     "  node dist/index.js --stats      Show cache statistics",
     "",
     "MCP Tools:",
-    "  run_process          - Run shell command with RTK caching",
+    "  run_process          - Run shell command with caching and logging",
     "  get_cache_stats      - Get cache hits/misses",
     "  clear_command_cache  - Clear all cached commands",
     "  cached_commands      - List all cached commands",
