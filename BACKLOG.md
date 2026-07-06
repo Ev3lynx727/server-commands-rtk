@@ -53,3 +53,100 @@
 - **@types/node**: Pinned to 18.x — consider bumping to 22.x LTS to use modern Node APIs.
 - **zod v4**: Breaking changes from v3. Audit API surface before upgrading (`errorMap` → `error`, `flatten()` deprecated).
 - **typescript v6**: Breaking changes. Verify `tsconfig.json` compatibility.
+
+---
+*Audit run: 2026-07-06*
+
+## Changelog Audit Trail
+
+| Metric | Value |
+|--------|-------|
+| Total commits (no-merges) | 0 |
+| Last tagged version | 0.3.0 |
+| Changelog entries | 5 versions |
+| Untracked commits (post last changelog) | 0 |
+
+## Implementation Audit Trail
+
+| Metric | Count |
+|--------|-------|
+| Doc files scanned | 10 |
+| Source files scanned | 9 |
+| :implemented claims | 0 |
+| :pending/:wip/:blocked claims | 0 |
+| :nextstep markers | 0 |
+| :bug references | 5 |
+| TODO in source | 0 |
+| FIXME in source | 0 |
+
+### Doc Files Scanned
+
+- BACKLOG.md
+- CE.md
+- CHANGELOG.md
+- README.md
+- docs/BENCHMARK.md
+- docs/OPENCODE_INTEGRATION.md
+- docs/references/000_user_experiences.md
+- docs/references/001_user_experiences.md
+- docs/references/002_user_experiences.md
+- docs/references/003_user_experiences.md
+
+### Source Files Scanned
+
+- src/cache.ts
+- src/config.ts
+- src/errors.ts
+- src/executor.ts
+- src/index.ts
+- src/logger.ts
+- src/resolver.ts
+- src/schemas.ts
+- src/server.ts
+
+### Bug References
+
+| File | Line | Text |
+|------|------|------|
+| docs/references/002_user_experiences.md | 57 | 003_user_experiences.md builds on this work by taking the fork approach: modifying the upstream filesystem server to sup |
+| docs/references/003_user_experiences.md | 1 | # 003_user_experiences.md — Fork build, inputSchema bug, & Pipeline validation |
+| docs/references/003_user_experiences.md | 17 | This session took the alternative route: fork the upstream MCP filesystem server and add optional base64 parameters dire |
+| docs/references/003_user_experiences.md | 21 | ## THE BUG: inputSchema Excluded Base64 Parameters |
+| docs/references/003_user_experiences.md | 39 | // BEFORE — BUG: plain object excludes content_base64 |
+
+## Issues Audit Trail
+
+| Metric | Count |
+|--------|-------|
+| Fixed (git log) | 0 |
+| Open in source (FIXME/BUG/HACK/etc) | 0 |
+| Documented issues | 5 |
+| Total outstanding | 5 |
+
+### Documented Issues
+
+| File | Line | Keyword | Text |
+|------|------|---------|------|
+| docs/references/000_user_experiences.md | 51 | workaround | ### Approach B: run_process Heredoc Workaround |
+| docs/references/000_user_experiences.md | 115 | workaround | | Criteria | Direct Write | run_process Workaround | write_file (Base64) | |
+| docs/references/000_user_experiences.md | 151 | workaround | | Maximizing token budget | `run_process` heredoc workaround (0 overhead, worse ergonomics) | |
+| docs/references/000_user_experiences.md | 169 | workaround | - If MCP SDK adds binary/blob parameter support (e.g., base64 native type), the workaround becomes unnecessary |
+| docs/references/002_user_experiences.md | 16 | workaround | 1. **commands-rtk `write_file`** — a dedicated MCP tool with required `content_b64` parameter, written as a pragmatic wo |
+
+## Open Pull Requests
+
+| Metric | Count |
+|--------|-------|
+| Total open PRs | 1 |
+| Draft | 0 |
+| Ready for review | 1 |
+| Needs review | 1 |
+| Stale (>14d) | 0 |
+| CI failing | 0 |
+
+Remote: `https://github.com/Ev3lynx727/mcp-commands-rtk.git`
+
+| # | Title | Author | Status | Draft | CI | Updated |
+|---|-------|--------|--------|-------|-----|---------|
+| #3 | chore(deps): bump @modelcontextprotocol/sdk from 1.4.0 to 1. | app/dependabot | review | no | pass | 2026-07-06 |
+

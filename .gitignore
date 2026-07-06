@@ -5,5 +5,6 @@ dist/
 .execution-log.jsonl
 .execution-log.json
 .execution-log-*.jsonl*
+BACKLOG.md
 .env
 .env.*

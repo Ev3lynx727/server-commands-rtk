@@ -3,9 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/Ev3lynx727/commands-rtk/actions/workflows/ci.yml/badge.svg)](https://github.com/Ev3lynx727/commands-rtk/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/commands-rtk)](https://www.npmjs.com/package/commands-rtk)
-[![MCP Badge](https://lobehub.com/badge/mcp-full/ev3lynx727-commands-rtk)](https://lobehub.com/mcp/ev3lynx727-commands-rtk)
 
-MCP server that executes shell commands via MCP tools - with streaming spawn, automatic RTK token reduction, persistent caching, and full execution logging.
+MCP server that executes shell commands via MCP tools - with streaming spawn, automatic [RTK](https://github.com/rtk-ai/rtk) token reduction, persistent caching, and full execution logging.
 
 - **Streaming spawn** - uses `spawn` (not `exec`), no `maxBuffer` ceiling, pipes stdout/stderr directly
 - **Auto-RTK** - transparently wraps commands with RTK for ~90% token reduction
@@ -26,17 +25,28 @@ MCP server that executes shell commands via MCP tools - with streaming spawn, au
 ## Requirements
 
 - **Node.js 24+** (ESM, `"type": "module"` in package.json)
-- **rtk CLI** - install via `curl -LsSf https://ev3lynx.github.io/rtk/install.sh | sh`
+- **rtk CLI** - install via `curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh`
 
 ## Installation
 
+### npm
+
 ```bash
-cd commands-rtk
+npm install -g @ev3lynx/commands-rtk
+```
+
+### From source
+
+```bash
+git clone https://github.com/Ev3lynx727/mcp-commands-rtk.git
+cd mcp-commands-rtk
 npm install
 npm run build
 ```
 
-Add to OpenCode config:
+### OpenCode / MCP client config
+
+Add to OpenCode:
 
 ```json
 {
@@ -78,9 +88,52 @@ For MCP clients (Claude Desktop, Cursor, VSCode, etc):
 | `write_file` | Write a file from base64 content (safe for special characters) |
 | `resolve_uri` | Resolve `scheme://path` to absolute file path via TOML config or `MCP_RESOURCE_ROOTS` |
 
-## Usage
+## Schema
 
-### run_process
+How commands-rtk processes an MCP tool call:
+
+```
+                          commands-rtk MCP Server
+  ┌──────────────────────────────────────────────────────────┐
+  │                                                          │
+  │  MCP Client              commands-rtk                    │
+  │  (OpenCode,               MCP Server                     │
+  │   Claude,      ────────  ┌──────────┐                   │
+  │   Cursor)      JSON-RPC  │ server.ts │                  │
+  │      │          stdin     │           │                  │
+  │      │  tools/call        │  Zod      │                  │
+  │      │  run_process ─────→│  .parse() │                  │
+  │      │  "ls -la"          └────┬──────┘                  │
+  │      │                         │                         │
+  │      │                         ▼                         │
+  │      │                  ┌──────────────┐                │
+  │      │                  │ executor.ts  │                │
+  │      │                  │              │                │
+  │      │                  │  spawn(      │                │
+  │      │                  │   "/bin/sh", │                │
+  │      │                  │   ["rtk ls   │──→ rtk CLI     │
+  │      │                  │    -la"])    │    filters     │
+  │      │                  │              │    output      │
+  │      │                  └──────┬───────┘                │
+  │      │                         │                         │
+  │      │                         ├── cache.ts ── upsert    │
+  │      │                         ├── logger.ts ── append   │
+  │      │                         ▼                         │
+  │      │  JSON-RPC         ┌──────────┐                   │
+  │      │  response ←───────│ server.ts│                   │
+  │      │  stdout           │  return   │                  │
+  │      │                   └──────────┘                   │
+  │                                                          │
+  │  State: ~/.local/share/state/commands-rtk/               │
+  │  ├── command-cache.json   (SHA-256 keyed)               │
+  │  └── execution-log.jsonl  (append-only, rolls)           │
+  │                                                          │
+  └──────────────────────────────────────────────────────────┘
+```
+
+The dotted flow: `server.ts` receives `tools/call` → `Zod.parse()` validates → `executor.ts` spawns with `rtk` prefix → result cached + logged → JSON-RPC response returned.
+
+## Usage
 
 ```javascript
 // Auto-RTK (default) - ~90% token reduction
@@ -254,6 +307,10 @@ Timeout returns `exitCode: 124` with message in `stderr`.
 | `RTK_MODEL_USED` | No | Override for `model_used` in execution log metadata |
 | `MCP_RESOURCE_ROOTS` | No | JSON object mapping scheme names to directory paths (fallback, TOML config is primary) |
 | `LOG_LEVEL` | No | Log level (`error`, `warn`, `info`, `debug`) |
+
+## Credit
+
+This project would not work without [RTK](https://github.com/rtk-ai/rtk) — the Rust token reducer that filters shell command output for ~90% token savings.
 
 ## License
 
