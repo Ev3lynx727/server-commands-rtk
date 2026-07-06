@@ -1,12 +1,12 @@
 {
-  "name": "server-commands-rtk",
+  "name": "commands-rtk",
   "version": "0.3.0",
   "description": "MCP server with RTK caching for shell commands \u2014 TypeScript + ESM + Zod",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "server-commands-rtk": "./dist/index.js"
+    "commands-rtk": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",

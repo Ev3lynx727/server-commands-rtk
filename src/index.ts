@@ -37,7 +37,7 @@ if (process.argv.includes("--stats")) {
   const { readFileSync, existsSync } = await import("node:fs");
   const { resolve } = await import("node:path");
   const { homedir } = await import("node:os");
-  const cacheFile = resolve(homedir(), ".local/share/state/server-commands-rtk/command-cache.json");
+  const cacheFile = resolve(homedir(), ".local/share/state/commands-rtk/command-cache.json");
   if (existsSync(cacheFile)) {
     try {
       const data = JSON.parse(readFileSync(cacheFile, "utf8"));

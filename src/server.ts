@@ -44,7 +44,7 @@ export class ServerCommandsRTK {
 
     this.config = loadConfig(path.join(serverDir, "rtk-hook.toml"));
 
-    const logDir = path.join(expandHome("~/.local/share"), "state/server-commands-rtk");
+    const logDir = path.join(expandHome("~/.local/share"), "state/commands-rtk");
     mkdirSync(logDir, { recursive: true });
     this.cache = new CommandCache(
       path.join(logDir, "command-cache.json"),
@@ -58,7 +58,7 @@ export class ServerCommandsRTK {
     );
 
     this.server = new Server(
-      { name: "server-commands-rtk", version: "0.2.0" },
+      { name: "commands-rtk", version: "0.2.0" },
       { capabilities: { tools: {}, resources: {} } },
     );
 

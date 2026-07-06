@@ -8,7 +8,7 @@
 
 ## OVERVIEW
 
-This document tracks performance benchmarks for the `server-commands-rtk` MCP server, including execution latency, `tryRewrite` overhead, cache performance, and token reduction via RTK filtering.
+This document tracks performance benchmarks for the `commands-rtk` MCP server, including execution latency, `tryRewrite` overhead, cache performance, and token reduction via RTK filtering.
 
 **Key difference from v0.2:** `tryRewrite()` replaced `prependRtk()`. Instead of blindly prefixing every command with `rtk`, it calls `rtk rewrite <cmd>` as a subprocess to determine if RTK has a filter. Adds ~55-65ms overhead on the first call per unique command, but avoids spawning `rtk` for commands it doesn't filter (`which`, `echo`, `cd`).
 
@@ -184,7 +184,7 @@ debounce_ms = 2000
 
 ### For Training Data Export
 
-1. **Single source** — `~/.local/share/state/server-commands-rtk/execution-log.jsonl` has full stdout/stderr + `rtk_rewritten` signal
+1. **Single source** — `~/.local/share/state/commands-rtk/execution-log.jsonl` has full stdout/stderr + `rtk_rewritten` signal
 2. **Filter by model** — Use `model_used` field to segment
 
 ---
@@ -205,5 +205,5 @@ Stdio is the default — no network exposure, no auth needed, minimal attack sur
 ---
 
 *Last Updated: 2026-07-03*
-*Benchmark Tool: `server-commands-rtk` v0.3.0*
+*Benchmark Tool: `commands-rtk` v0.3.0*
 *OpenCode v1.17*

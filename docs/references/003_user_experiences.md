@@ -172,7 +172,7 @@ Branch `feat/filesystem-content-base64` on `Ev3lynx727/servers`.
 
 ## GAP CLOSED: Auto-mkdir Added to Forked Filesystem
 
-The `server-commands-rtk_write_file` had auto-mkdir; the forked `filesystem_write_file` did not. Now it does:
+The `commands-rtk_write_file` had auto-mkdir; the forked `filesystem_write_file` did not. Now it does:
 
 ```typescript
 // index.ts:361
@@ -182,7 +182,7 @@ await writeFileContent(validPath, content);
 
 ### Feature Comparison After Fix
 
-| Feature | Forked Filesystem | server-commands-rtk |
+| Feature | Forked Filesystem | commands-rtk |
 |---------|------------------|---------------------|
 | Base64 param | `content_base64` (optional) | `content_b64` (required) |
 | Zod validation | `.refine()` — at least one of content/content_base64 | `z.string().min(1)` |

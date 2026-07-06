@@ -54,7 +54,7 @@ Pass file content via Python raw string inside a `run_process` command. The actu
 
 ```jsonc
 // ✅ Works, content lives inside subprocess
-"server-commands-rtk_run_process": {
+"commands-rtk_run_process": {
   "command": "python3 -c \"...\"  # <- short, content in subprocess"
 }
 ```
@@ -66,7 +66,7 @@ Pass file content via Python raw string inside a `run_process` command. The actu
 
 ```jsonc
 // ✅ Works reliably with any content
-"server-commands-rtk_write_file": {
+"commands-rtk_write_file": {
   "path": "/path/to/file.md",
   "content_b64": "VGhpcyBpcyBiYXNlNjQgZW5jb2RlZA=="  // JSON-safe chars only
 }
@@ -94,7 +94,7 @@ Base64 encoding inflates data by **33.3%** (fixed: 3 bytes → 4 base64 chars). 
 
 | Component | Direct Write | write_file | Delta |
 |-----------|-------------|------------|-------|
-| Tool name | `filesystem_write_file` (21 chars) | `server-commands-rtk_write_file` (31 chars) | +10 |
+| Tool name | `filesystem_write_file` (21 chars) | `commands-rtk_write_file` (31 chars) | +10 |
 | Field names | `filePath` + `content` (16 chars) | `path` + `content_b64` (18 chars) | +2 |
 | **Total wrapper** | ~80 chars | ~92 chars | **+12 chars (~3 tokens)** |
 
@@ -155,7 +155,7 @@ Base64 overhead is an **up-front investment** that eliminates retry waste. If ev
 ```
 if content_has_special_chars or content_is_binary:
     if token_budget_is_plentiful:
-        use server-commands-rtk_write_file  # ~50% overhead, simple
+        use commands-rtk_write_file  # ~50% overhead, simple
     else:
         use run_process heredoc             # 0% overhead, manual
 else:

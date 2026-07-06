@@ -1,4 +1,4 @@
-# Pre-commit hooks for server-commands-rtk
+# Pre-commit hooks for commands-rtk
 #
 # Usage:
 #   pip install pre-commit

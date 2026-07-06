@@ -10,7 +10,7 @@
 
 ### Changed
 
-- **State files relocated** from install directory to `~/.local/share/state/server-commands-rtk/` (command-cache.json, execution-log.jsonl)
+- **State files relocated** from install directory to `~/.local/share/state/commands-rtk/` (command-cache.json, execution-log.jsonl)
 - Scheme registry now reads `~/.config/uri-resolver/config.toml` as primary source, with `MCP_RESOURCE_ROOTS` env var as fallback
 - Resource root handlers refactored from local `resolvedRoots` array to class property `this.roots` with typed `SchemeEntry`
 - Archived logs co-locate with active log in the state directory

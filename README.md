@@ -1,16 +1,16 @@
-# server-commands-rtk
+# commands-rtk
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/Ev3lynx727/server-commands-rtk/actions/workflows/ci.yml/badge.svg)](https://github.com/Ev3lynx727/server-commands-rtk/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/server-commands-rtk)](https://www.npmjs.com/package/server-commands-rtk)
-[![MCP Badge](https://lobehub.com/badge/mcp-full/ev3lynx727-server-commands-rtk)](https://lobehub.com/mcp/ev3lynx727-server-commands-rtk)
+[![CI](https://github.com/Ev3lynx727/commands-rtk/actions/workflows/ci.yml/badge.svg)](https://github.com/Ev3lynx727/commands-rtk/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/commands-rtk)](https://www.npmjs.com/package/commands-rtk)
+[![MCP Badge](https://lobehub.com/badge/mcp-full/ev3lynx727-commands-rtk)](https://lobehub.com/mcp/ev3lynx727-commands-rtk)
 
 MCP server that executes shell commands via MCP tools - with streaming spawn, automatic RTK token reduction, persistent caching, and full execution logging.
 
 - **Streaming spawn** - uses `spawn` (not `exec`), no `maxBuffer` ceiling, pipes stdout/stderr directly
 - **Auto-RTK** - transparently wraps commands with RTK for ~90% token reduction
 - **Timeout + cancellation** - `AbortController` cancels stream collection immediately, `SIGKILL` terminates process tree
-- **Persistent cache** - results cached in `~/.local/share/state/server-commands-rtk/command-cache.json` across sessions
+- **Persistent cache** - results cached in `~/.local/share/state/commands-rtk/command-cache.json` across sessions
 - **Execution logger** - append-only JSONL with auto-rotation, gzip compression, archive listing
 - **Safe file writes** - `write_file` with base64 content avoids JSON serialization breakage on special characters
 - **URI resolver** - `resolve_uri` resolves `scheme://path` to absolute file paths via shared TOML config
@@ -31,7 +31,7 @@ MCP server that executes shell commands via MCP tools - with streaming spawn, au
 ## Installation
 
 ```bash
-cd server-commands-rtk
+cd commands-rtk
 npm install
 npm run build
 ```
@@ -41,9 +41,9 @@ Add to OpenCode config:
 ```json
 {
   "mcp": {
-    "server-commands-rtk": {
+    "commands-rtk": {
       "type": "local",
-      "command": ["node", "/path/to/server-commands-rtk/dist/index.js"],
+      "command": ["node", "/path/to/commands-rtk/dist/index.js"],
       "enabled": true,
       "timeout": 60000
     }
@@ -56,9 +56,9 @@ For MCP clients (Claude Desktop, Cursor, VSCode, etc):
 ```json
 {
   "mcpServers": {
-    "server-commands-rtk": {
+    "commands-rtk": {
       "command": "node",
-      "args": ["/path/to/server-commands-rtk/dist/index.js"],
+      "args": ["/path/to/commands-rtk/dist/index.js"],
       "env": {}
     }
   }
@@ -175,10 +175,10 @@ debounce_ms = 2000
 
 ## State Files
 
-All runtime state lives under `~/.local/share/state/server-commands-rtk/`:
+All runtime state lives under `~/.local/share/state/commands-rtk/`:
 
 ```
-~/.local/share/state/server-commands-rtk/
+~/.local/share/state/commands-rtk/
 ├── command-cache.json      # Persistent command cache
 └── execution-log.jsonl     # Append-only execution log
 ```

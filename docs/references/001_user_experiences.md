@@ -9,7 +9,7 @@
 
 ## OVERVIEW
 
-This document captures the attempt to build a transparent OpenCode plugin that intercepts `filesystem_write_file` calls with content containing special characters and automatically redirects them to `server-commands-rtk_write_file` (base64-encoded). Three architectures were evaluated. None achieved transparent interception — but the investigation revealed important constraints of the OpenCode plugin system and a change in the reliability of the upstream MCP filesystem server.
+This document captures the attempt to build a transparent OpenCode plugin that intercepts `filesystem_write_file` calls with content containing special characters and automatically redirects them to `commands-rtk_write_file` (base64-encoded). Three architectures were evaluated. None achieved transparent interception — but the investigation revealed important constraints of the OpenCode plugin system and a change in the reliability of the upstream MCP filesystem server.
 
 ---
 
@@ -17,7 +17,7 @@ This document captures the attempt to build a transparent OpenCode plugin that i
 
 000_user_experiences.md established:
 - MCP tool params are JSON-serialized; `"`, `` ` ``, `${}`, and long strings break the framing
-- `server-commands-rtk_write_file` with `content_b64` reliably handles any content
+- `commands-rtk_write_file` with `content_b64` reliably handles any content
 - Base64 overhead (~50% token premium) is offset by eliminating retries
 
 This session attempted to **automate the redirect** — so the agent can keep calling `filesystem_write_file` and the plugin silently routes to base64 when needed.
@@ -32,7 +32,7 @@ Wrap the filesystem MCP server, intercept `filesystem_write_file`, handle specia
 **Status:** Rejected early (unnecessary complexity — deploy and maintain a separate process)
 
 ### Arch B: `tool.execute.before` Hook Redirect
-Use the `"tool.execute.before"` hook to detect special chars in content and mutate `input.tool` to `"server-commands-rtk_write_file"` + rewrite `output.args` with `content_b64`.
+Use the `"tool.execute.before"` hook to detect special chars in content and mutate `input.tool` to `"commands-rtk_write_file"` + rewrite `output.args` with `content_b64`.
 
 **Implementation:** `~/.config/opencode/plugins/mcp-intercept.ts`
 **Result:** ❌ Hook fires but `input.tool` mutation does not cause re-dispatch. The MCP tool dispatcher resolves the target handler before the hook fires — changing the tool name after dispatch does nothing.
@@ -124,7 +124,7 @@ if using @modelcontextprotocol/server-filesystem >= 2026.1.14:
     use filesystem_write_file  # 0% overhead, works reliably
 else if content_has_special_chars:
     if token_budget_is_plentiful:
-        use server-commands-rtk_write_file  # ~50% overhead, simple
+        use commands-rtk_write_file  # ~50% overhead, simple
     else:
         use run_process heredoc             # 0% overhead, manual
 else:
@@ -138,14 +138,14 @@ else:
 | File | Purpose |
 |------|---------|
 | `~/.config/opencode/plugins/mcp-intercept.ts` | OpenCode plugin — Arch B + C implementations (currently inert, kept as reference) |
-| `~/server/server-commands-rtk/src/server.ts` | `write_file` tool with base64 support |
-| `~/.config/opencode/opencode.jsonc` | MCP server config (filesystem, server-commands-rtk) |
+| `~/server/commands-rtk/src/server.ts` | `write_file` tool with base64 support |
+| `~/.config/opencode/opencode.jsonc` | MCP server config (filesystem, commands-rtk) |
 
 ---
 
 ## IMPLEMENTED
 
-- `"experimental.chat.system.transform"` hook added to `opencode.jsonc:338` (2026-06-20). Instructs all agents to prefer `server-commands-rtk_write_file` with base64 content for any file containing special characters.
+- `"experimental.chat.system.transform"` hook added to `opencode.jsonc:338` (2026-06-20). Instructs all agents to prefer `commands-rtk_write_file` with base64 content for any file containing special characters.
 
 ## REMAINING FUTURE WORK
 

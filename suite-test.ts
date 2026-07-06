@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * suite-test.ts — Stress, load, benchmark, and resilience suite for server-commands-rtk v0.2.0
+ * suite-test.ts — Stress, load, benchmark, and resilience suite for commands-rtk v0.2.0
  *
  * Usage:
  *   npx tsx suite-test.ts                  # Run all
@@ -408,7 +408,7 @@ async function benchmarkTests() {
 
 async function resilienceTests() {
   await runTest("resilience: cache corruption recovery", async () => {
-    const cacheFile = join(homedir(), ".local/share/state/server-commands-rtk/command-cache.json");
+    const cacheFile = join(homedir(), ".local/share/state/commands-rtk/command-cache.json");
     const original = existsSync(cacheFile) ? readFileSync(cacheFile, "utf8") : "";
     try {
       writeFileSync(cacheFile, "corrupted garbage data");

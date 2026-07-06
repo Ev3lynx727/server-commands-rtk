@@ -1,4 +1,4 @@
-# CE.md — server-commands-rtk
+# CE.md — commands-rtk
 
 ## Identity
 
@@ -9,7 +9,7 @@ Provides 7 tools + 1 write utility, plus configurable resource roots for agent d
 ## Architecture
 
 ```
-Agent (OpenCode) <--stdio MCP--> server-commands-rtk (this server)
+Agent (OpenCode) <--stdio MCP--> commands-rtk (this server)
                                      |
                     +----------------+----------------+
                     |                |                |
@@ -25,7 +25,7 @@ Agent (OpenCode) <--stdio MCP--> server-commands-rtk (this server)
     command-cache   rtk     execution-log
    (sha256 JSON)  prefix     (append JSONL)
 
-State files: ~/.local/share/state/server-commands-rtk/
+State files: ~/.local/share/state/commands-rtk/
 ```
 
 ### Key Design Decisions
@@ -58,8 +58,8 @@ State files: ~/.local/share/state/server-commands-rtk/
 | `src/rtk.ts` | RTK rewrite integration: tryRewrite() — calls `rtk rewrite` subprocess for smart command dispatch |
 | `src/errors.ts` | Error categorizer: 7 patterns matched against stderr+stdout |
 | `rtk-hook.toml` | Config: timeout, buffer, debounce |
-| `~/.local/share/state/server-commands-rtk/command-cache.json` | Persistent cache file (auto-created) |
-| `~/.local/share/state/server-commands-rtk/execution-log.jsonl` | Append-only execution log (auto-created) |
+| `~/.local/share/state/commands-rtk/command-cache.json` | Persistent cache file (auto-created) |
+| `~/.local/share/state/commands-rtk/execution-log.jsonl` | Append-only execution log (auto-created) |
 | `~/.config/uri-resolver/config.toml` | Shared scheme config (read on startup, optional) |
 | `docs/OPENCODE_INTEGRATION.md` | OpenCode setup guide, agent permissions, troubleshooting |
 | `docs/BENCHMARK.md` | Latency, token savings, cache performance benchmarks |
@@ -120,14 +120,14 @@ Agent call -> handleRunProcess(args)
 - **Best-effort disk writes** — never crashes on I/O errors (silent try/catch on cache/log writes)
 - **Single-process, single-user** — no concurrent access safety on cache/log files
 - **Config cascade**: CLI arg > env var > toml config > hard defaults
-- **State dir** — `~/.local/share/state/server-commands-rtk/` created on first run (`mkdirSync recursive`)
+- **State dir** — `~/.local/share/state/commands-rtk/` created on first run (`mkdirSync recursive`)
 - **Cache is in-memory first** — loaded from `command-cache.json` on startup, debounced writes
 - **Path traversal protection** on resource roots via startsWith() check
 
 ## Integration
 
 - Registered as local MCP server in `~/.config/opencode/opencode.jsonc`
-- 9 agents have `server-commands-rtk_run_process` enabled (builder-pro, deploy, deploy-*, docker-config, lint)
+- 9 agents have `commands-rtk_run_process` enabled (builder-pro, deploy, deploy-*, docker-config, lint)
 - Execution log is a source for skeleton-cli datasets (category: execution-logs)
 - Legacy `rtk.ts` plugin disabled (renamed to `rtk.ts.disabled`) — replaced by server-side RTK wrapping
 - Training export: `model_used` field segments execution log by agent/model for dataset building
@@ -146,7 +146,7 @@ Both are local hooks (no remote repo). Install via `pip install pre-commit && pr
 | Flag | Behavior |
 |------|----------|
 | `--help` / `-h` | Print tool list + env var reference, exit 0 |
-| `--stats` | Read `~/.local/share/state/server-commands-rtk/command-cache.json`, print hit/miss counts + command count, exit 0 |
+| `--stats` | Read `~/.local/share/state/commands-rtk/command-cache.json`, print hit/miss counts + command count, exit 0 |
 
 Signal handling: `SIGTERM` and `SIGINT` both call `server.flush()` (writing cache to disk) before `process.exit(0)`.
 

@@ -7,7 +7,7 @@
 
 ## OVERVIEW
 
-`server-commands-rtk` integrates with OpenCode as a **single-layer MCP server** that provides enhanced shell command execution with RTK token minimization, caching, and execution logging.
+`commands-rtk` integrates with OpenCode as a **single-layer MCP server** that provides enhanced shell command execution with RTK token minimization, caching, and execution logging.
 
 The legacy `rtk.ts` plugin (`~/.config/opencode/plugins/rtk.ts`) has been **disabled** — it was redundant with the MCP server layer and caused double-RTK wrapping.
 
@@ -17,13 +17,13 @@ The legacy `rtk.ts` plugin (`~/.config/opencode/plugins/rtk.ts`) has been **disa
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│               server-commands-rtk v0.2.0 (Single Layer)            │
+│               commands-rtk v0.2.0 (Single Layer)            │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  ┌─────────────────────────────────────────────────────────────┐  │
-│  │  MCP Server (server-commands-rtk)                            │  │
+│  │  MCP Server (commands-rtk)                            │  │
 │  │  ─────────────────────────────────────────────────────────   │  │
-│  │  Location: ~/server/server-commands-rtk/dist/index.js         │  │
+│  │  Location: ~/server/commands-rtk/dist/index.js         │  │
 │  │  Transport: stdio (local child process)                       │  │
 │  │  Tools: run_process, get_cache_stats, clear_command_cache,    │  │
 │  │         cached_commands, execution_log                        │  │
@@ -59,9 +59,9 @@ Configure in `~/.config/opencode/opencode.jsonc`:
 ```jsonc
 {
   "mcp": {
-    "server-commands-rtk": {
+    "commands-rtk": {
       "type": "local",
-      "command": ["node", "/home/ev3lynx/server/server-commands-rtk/dist/index.js"],
+      "command": ["node", "/home/ev3lynx/server/commands-rtk/dist/index.js"],
       "enabled": true,
       "timeout": 60000
     }
@@ -76,12 +76,12 @@ Enable tools for specific agents:
   "agent": {
     "builder-pro": {
       "tools": {
-        "server-commands-rtk_run_process": true
+        "commands-rtk_run_process": true
       }
     },
     "deploy": {
       "tools": {
-        "server-commands-rtk_run_process": true
+        "commands-rtk_run_process": true
       }
     }
   }
@@ -90,7 +90,7 @@ Enable tools for specific agents:
 
 ### Available Agents
 
-The following agents have `server-commands-rtk_run_process` enabled:
+The following agents have `commands-rtk_run_process` enabled:
 - `builder-pro`
 - `docker-config`
 - `deploy`
@@ -108,7 +108,7 @@ The following agents have `server-commands-rtk_run_process` enabled:
 | File | Purpose |
 |------|---------|
 | `~/.config/opencode/opencode.jsonc` | MCP server config + agent tools |
-| `~/server/server-commands-rtk/rtk-hook.toml` | Server execution settings |
+| `~/server/commands-rtk/rtk-hook.toml` | Server execution settings |
 
 The `rtk.ts` plugin at `~/.config/opencode/plugins/rtk.ts` has been **disabled** (renamed to `rtk.ts.disabled`).
 
@@ -199,24 +199,24 @@ Expected response:
 
 2. Check server path exists:
    ```bash
-   ls -la ~/server/server-commands-rtk/dist/index.js
+   ls -la ~/server/commands-rtk/dist/index.js
    ```
 
 3. Run server directly to check for errors:
    ```bash
-   node ~/server/server-commands-rtk/dist/index.js --help
+   node ~/server/commands-rtk/dist/index.js --help
    ```
 
 4. Run the test suite:
    ```bash
-   cd ~/server/server-commands-rtk && npx tsx suite-test.ts
+   cd ~/server/commands-rtk && npx tsx suite-test.ts
    ```
 
 ### Cache Issues
 
 Clear the cache and restart:
 ```bash
-rm ~/.local/share/state/server-commands-rtk/command-cache.json
+rm ~/.local/share/state/commands-rtk/command-cache.json
 ```
 
 The cache file is auto-recreated on the next command. Corruption is handled gracefully — the server logs a warning and starts fresh.
@@ -259,4 +259,4 @@ The server provides:
 ---
 
 *Last Updated: 2026-06-20*
-*Documentation: server-commands-rtk v0.2.0*
+*Documentation: commands-rtk v0.2.0*
