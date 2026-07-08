@@ -1,0 +1,14 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "commands-rtk",
+  "folders": ["docs"],
+  "rules": [
+    "Use commands-rtk as the CLI bridge for MCP agents — it wraps shell commands with RTK token optimization, audit logging, and structured error handling",
+    "commands-rtk extends rtk-ai/rtk with MCP integration: audit logs in JSONL, per-client isolation, and structured tool responses",
+    "Pair with oh-my-mcp for lifecycle management — commands-rtk runs as an MCP server under the oh-my-mcp gateway, not as a standalone daemon",
+    "The CLI bridge pattern is for execute/write operations — queries should go through typed MCP tools instead",
+    "commands-rtk captures exit codes, duration, stdout/stderr, and error categories for every execution"
+  ],
+  "excludeFolders": ["node_modules", "dist", ".git", "src"],
+  "excludeFiles": ["package-lock.json", "tsconfig.json"]
+}
