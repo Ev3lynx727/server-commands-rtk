@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "commands-rtk": "./dist/index.js"
+    "commands-rtk": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
