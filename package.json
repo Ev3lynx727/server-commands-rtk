@@ -17,6 +17,7 @@
     "test:quick": "npx tsx suite-test.ts --quick",
     "verify": "npx tsc --noEmit && npm run build",
     "precommit": "npm run verify",
+    "setup": "bash patches/apply-rtk-patch.sh",
     "postinstall": "patch-package"
   },
   "dependencies": {
