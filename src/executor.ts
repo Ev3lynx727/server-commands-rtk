@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess, execFileSync } from "node:child_process";
 import { accessSync, constants } from "node:fs";
 import { resolve } from "node:path";
 import type { ErrorCategory, ExecResult } from "./schemas.js";
@@ -83,7 +83,19 @@ export async function executeCommand(
   const trimmed = command.trimStart();
   const isBuiltin = /^(cd|pushd|popd|export|source|\.|set|unset|alias|unalias|exit|trap|exec|type)($|\s)/.test(trimmed);
   const isCompound = /[;&|]/.test(trimmed.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g, ""));
-  const cmdLine = isBuiltin || isCompound ? command : "rtk " + command;
+  // Check if rtk can rewrite this command. If not (exit 1, passthrough), run raw.
+  // Avoids rtk prepending commands find/fd with unsupported predicates.
+  let cmdLine: string;
+  if (isBuiltin || isCompound) {
+    cmdLine = command;
+  } else {
+    try {
+      const out = execFileSync("rtk", ["rewrite", trimmed], { encoding: "utf8", timeout: 2000 }).trim();
+      cmdLine = out && out !== trimmed ? out : trimmed;
+    } catch {
+      cmdLine = trimmed;
+    }
+  }
 
   let timedOut = false;
   let child: ChildProcess | null = null;
