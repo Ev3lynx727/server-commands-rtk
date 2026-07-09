@@ -9,6 +9,7 @@ function printHelp(): void {
     "  node dist/index.js              Run MCP server",
     "  node dist/index.js --help       Show this help",
     "  node dist/index.js --stats      Show cache statistics",
+    "  node dist/index.js setup        Apply one-time patches (rtk fix, etc.)",
     "",
     "MCP Tools:",
     "  run_process          - Run shell command with caching and logging",
@@ -30,6 +31,20 @@ function printHelp(): void {
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   printHelp();
+  process.exit(0);
+}
+
+if (process.argv.includes("setup")) {
+  const { execFileSync } = await import("node:child_process");
+  const { dirname, resolve } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const selfDir = dirname(fileURLToPath(import.meta.url));
+  const script = resolve(selfDir, "..", "patches", "apply-rtk-patch.sh");
+  try {
+    execFileSync("bash", [script], { stdio: "inherit" });
+  } catch {
+    process.exit(1);
+  }
   process.exit(0);
 }
 
