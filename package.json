@@ -16,7 +16,8 @@
     "test": "npx tsx suite-test.ts",
     "test:quick": "npx tsx suite-test.ts --quick",
     "verify": "npx tsc --noEmit && npm run build",
-    "precommit": "npm run verify"
+    "precommit": "npm run verify",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.4.0",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@types/node": "^18.19.130",
+    "patch-package": "^8.0.1",
     "tsx": "^4.22.4",
     "typescript": "^5.7.0"
   },
