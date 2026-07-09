@@ -29,24 +29,61 @@ MCP server that executes shell commands via MCP tools - with streaming spawn, au
 
 ## Installation
 
-### npm
+### npx (no install)
 
 ```bash
-npm install -g @ev3lynx/commands-rtk
+npx commands-rtk                    # Run MCP server (downloads on demand)
+npx commands-rtk setup              # Apply one-time patches (rtk fix, etc.)
+```
+
+### npm (global install)
+
+```bash
+npm install -g commands-rtk
+commands-rtk setup                  # One-time patch setup
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/Ev3lynx727/mcp-commands-rtk.git
-cd mcp-commands-rtk
+git clone https://github.com/Ev3lynx727/server-commands-rtk.git
+cd server-commands-rtk
 npm install
 npm run build
+npm run setup                       # One-time patch setup (rebuilds rtk from source if needed)
 ```
 
-### OpenCode / MCP client config
+### npx (no install, MCP client config)
 
-Add to OpenCode:
+```json
+{
+  "mcpServers": {
+    "commands-rtk": {
+      "command": "npx",
+      "args": ["commands-rtk"],
+      "env": {}
+    }
+  }
+}
+```
+
+> **First run:** Run `npx commands-rtk setup` once before first use to apply one-time patches.
+
+### Global install (MCP client config)
+
+```json
+{
+  "mcpServers": {
+    "commands-rtk": {
+      "command": "commands-rtk",
+      "args": [],
+      "env": {}
+    }
+  }
+}
+```
+
+### OpenCode
 
 ```json
 {
@@ -56,20 +93,6 @@ Add to OpenCode:
       "command": ["node", "/path/to/commands-rtk/dist/index.js"],
       "enabled": true,
       "timeout": 60000
-    }
-  }
-}
-```
-
-For MCP clients (Claude Desktop, Cursor, VSCode, etc):
-
-```json
-{
-  "mcpServers": {
-    "commands-rtk": {
-      "command": "node",
-      "args": ["/path/to/commands-rtk/dist/index.js"],
-      "env": {}
     }
   }
 }
