@@ -4,6 +4,8 @@
 [![CI](https://github.com/Ev3lynx727/commands-rtk/actions/workflows/ci.yml/badge.svg)](https://github.com/Ev3lynx727/commands-rtk/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/commands-rtk)](https://www.npmjs.com/package/commands-rtk)
 [![server-commands-rtk MCP server](https://glama.ai/mcp/servers/Ev3lynx727/server-commands-rtk/badges/score.svg)](https://glama.ai/mcp/servers/Ev3lynx727/server-commands-rtk)
+
+---
 [![server-commands-rtk MCP server](https://glama.ai/mcp/servers/Ev3lynx727/server-commands-rtk/badges/card.svg)](https://glama.ai/mcp/servers/Ev3lynx727/server-commands-rtk)
 
 MCP server that executes shell commands via MCP tools - with streaming spawn, automatic [RTK](https://github.com/rtk-ai/rtk) token reduction, persistent caching, and full execution logging.
@@ -27,7 +29,11 @@ MCP server that executes shell commands via MCP tools - with streaming spawn, au
 ## Requirements
 
 - **Node.js 24+** (ESM, `"type": "module"` in package.json)
-- **rtk CLI** - install via `curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh`
+- **rtk CLI** - install via
+
+  ```
+  `curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh`
+  ```
 
 ## Installation
 
