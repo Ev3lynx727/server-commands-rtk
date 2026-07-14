@@ -79,16 +79,23 @@ export class ServerCommandsRTK {
         {
           name: "run_process",
           description:
-            "Run shell command. Auto-prefixed with `rtk` for token minimization (60-90% savings).",
+            "Run a shell command through the rtk token-minimizer (60-90% savings on command output). Use when: execute any shell command (ls, git, find, grep, npm, tsc, curl, cat...). Prefer over: the builtin shell/exec tool - adds caching, execution logging, and rtk output compression. Avoid when: the command is a shell builtin (cd/exit) - use the `cwd` param instead; or output must NOT be rtk-rewritten.",
           inputSchema: {
             type: "object",
             properties: {
-              command: { type: "string" },
-              cwd: { type: "string" },
+              command: {
+                type: "string",
+                description: "Shell command to run. rtk rewrites it for token savings - do NOT prepend `rtk` yourself.",
+              },
+              cwd: {
+                type: "string",
+                description: "Working directory. Use instead of embedding `cd` (cd is a shell builtin, not rtk-runnable).",
+              },
               description: { type: "string" },
               clear_cache: {
                 type: "boolean",
                 default: false,
+                description: "If true, bypass/refresh the cache for this command (scoped clear).",
               },
               model_used: {
                 type: "string",
@@ -106,26 +113,30 @@ export class ServerCommandsRTK {
         },
         {
           name: "get_cache_stats",
-          description: "Get cache statistics",
+          description: "Show command-cache hit/miss stats and size. Use when: measure rtk token savings or debug cache behavior. Prefer over: cached_commands when you need aggregates, not the per-command list. Avoid when: you need the actual cached commands - use cached_commands.",
           inputSchema: { type: "object", properties: {} },
         },
         {
           name: "clear_command_cache",
-          description: "Clear all cached commands",
+          description: "Wipe the entire command cache. Use when: cache is stale/corrupted or you want to force fresh execution. Avoid when: you only need to re-run one command - pass clear_cache:true to run_process instead (scoped, cheaper).",
           inputSchema: { type: "object", properties: {} },
         },
         {
           name: "cached_commands",
-          description: "List all cached commands",
+          description: "List every cached command with hit counts. Use when: inspect/audit what's cached (e.g. RTK dataset analysis). Prefer over: get_cache_stats when you want the per-command list, not aggregates. Avoid when: you only need totals - use get_cache_stats.",
           inputSchema: { type: "object", properties: {} },
         },
         {
           name: "execution_log",
-          description: "Get execution log (last N entries, optionally including archives)",
+          description: "Return recent command executions (last N, optionally including rotated archives). Use when: trace what ran, debug a failure, or build a dataset. Prefer over: list_archives when you want log contents; list_archives only lists filenames. Avoid when: you need live cache state - use get_cache_stats.",
           inputSchema: {
             type: "object",
             properties: {
-              limit: { type: "number", default: 100 },
+              limit: {
+                type: "number",
+                default: 100,
+                description: "Max entries to return (default 100).",
+              },
               include_archives: {
                 type: "boolean",
                 default: false,
@@ -136,13 +147,13 @@ export class ServerCommandsRTK {
         },
         {
           name: "list_archives",
-          description: "List all rotated log archive files for dataset pipeline",
+          description: "List rotated execution-log archive files. Use when: building a dataset pipeline and need archive filenames to read. Prefer over: execution_log when you only need the file list, not contents. Avoid when: you want log contents - use execution_log with include_archives:true.",
           inputSchema: { type: "object", properties: {} },
         },
         {
           name: "write_file",
           description:
-            "Write a file with base64-encoded content. Use this instead of write/filesystem_write_file when content contains special chars that break JSON serialization.",
+            "Write a file from base64-encoded content (avoids JSON-serialization breakage with quotes/backticks/special chars). Use when: writing files whose content has special characters, or you want one safe write path. Prefer over: the builtin write tool - base64 sidesteps MCP JSON escaping issues (constraint #338). Avoid when: content is plain ASCII text you already hold - but base64 is still safe.",
           inputSchema: {
             type: "object",
             properties: {
@@ -159,9 +170,9 @@ export class ServerCommandsRTK {
           },
         },
           {
-            name: "resolve_uri",
-            description:
-              "Resolve a scheme:// URI to an absolute file path. Uses schemes registered via MCP_RESOURCE_ROOTS env var (headquarters://, vaults://, etc.). scheme://. resolves to the base directory.",
+          name: "resolve_uri",
+          description:
+            "Resolve a scheme:// URI (headquarters://, vaults://, gists://) to an absolute file path. Use when: you have a scheme URI and need a real path for read_file/write_file. Prefer over: guessing filesystem layout - URIs decouple tools from paths. Avoid when: you already have an absolute path - pass it directly to read_file/write_file. scheme://. resolves to the base directory.",
             inputSchema: {
               type: "object",
               properties: {
@@ -174,9 +185,9 @@ export class ServerCommandsRTK {
             },
           },
           {
-            name: "read_file",
-            description:
-              "Read a file with token-optimized output via `rtk read`. First-class read tool mirroring write_file. Supports max_lines, tail_lines, level (none|minimal|aggressive), line_numbers, and analyze (md-analyzer structure for .md files).",
+          name: "read_file",
+          description:
+            "Read a file with token-optimized output via `rtk read`. Use when: you need file content (any type) - first-class read mirroring write_file. Prefer over: the builtin read tool - routes through rtk for output compression (~38% on large files) and supports analyze. Avoid when: you have a scheme URI, not a path - call resolve_uri first, then read_file the result. Set analyze:true on .md to also get md-analyzer structure (headings, links, tokens).",
             inputSchema: {
               type: "object",
               properties: {
