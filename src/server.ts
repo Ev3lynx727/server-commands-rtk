@@ -201,6 +201,10 @@ export class ServerCommandsRTK {
                   type: "boolean",
                   description: "Show line numbers",
                 },
+                analyze: {
+                  type: "boolean",
+                  description: "Run md-analyzer on .md files; includes headings, links, tokens, and stats in structuredContent",
+                },
               },
               required: ["path"],
             },
