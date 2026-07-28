@@ -24,7 +24,7 @@ import { loadConfig } from "./config.js";
 import { parse } from "smol-toml";
 import { CommandCache } from "./cache.js";
 import { ExecutionLogger } from "./logger.js";
-import { executeCommand } from "./executor.js";
+import { executeCommand, rewriteCommandFast } from "./executor.js";
 import { categorizeError } from "./errors.js";
 import { analyzeFile } from "@ev3lynx/md-analyzer";
 
@@ -36,6 +36,7 @@ export class ServerCommandsRTK {
   private readonly cache: CommandCache;
   private readonly logger: ExecutionLogger;
   private readonly roots: SchemeEntry[] = [];
+  private readonly rewriteCache: Map<string, string> = new Map();
   private clientName: string | null = null;
 
   constructor() {
@@ -447,7 +448,15 @@ export class ServerCommandsRTK {
     }
 
     this.cache.recordMiss();
-    const result = await executeCommand(parsed.command, {
+
+    // Fast-path rewrite: inlined, no subprocess (~0ms vs ~90ms for rtk rewrite)
+    let rewritten = this.rewriteCache.get(parsed.command);
+    if (!rewritten) {
+      rewritten = rewriteCommandFast(parsed.command);
+      this.rewriteCache.set(parsed.command, rewritten);
+    }
+
+    const result = await executeCommand(rewritten, {
       timeout_ms: parsed.timeout_ms ?? this.config.timeout_ms,
       max_buffer_mb: this.config.max_buffer_mb,
       cwd: parsed.cwd,

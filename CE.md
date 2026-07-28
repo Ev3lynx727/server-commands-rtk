@@ -2,7 +2,7 @@
 
 ## Identity
 
-MCP server for shell command execution with RTK token minimization, persistent caching, and execution logging. TypeScript + ESM + Zod, v0.3.0.
+MCP server for shell command execution with RTK token minimization, persistent caching, and execution logging. TypeScript + ESM + Zod, v0.4.0.
 
 Provides 7 tools + 1 write utility, plus configurable resource roots for agent document access and `scheme://` URI resolution via shared TOML config.
 
@@ -36,7 +36,8 @@ State files: ~/.local/share/state/commands-rtk/
 | Termination | SIGKILL on timeout | Hard kill guarantees process tree dies |
 | Cache key | SHA-256 (cmd + cwd) | Deterministic, collision-free, 16-char hex |
 | Cache persist | Debounced JSON write | 2s batch window, survives server restart |
-| Log format | Append JSONL + gzip | Training-data ready, auto-rotate at 1K entries |
+| Log format | Async append JSONL + gzip | Training-data ready, auto-rotate at 1K entries, non-blocking event loop |
+| Rewrite dispatch | Inline TypeScript + in-memory cache | Eliminates ~90ms `rtk rewrite` subprocess per unique command |
 | RTK wrapping | Uniform prefix on all cmds | v0.2.0 removed per-command wrapper config (legacy v0.1.0) |
 | Error category | Pattern match on stderr/stdout | 7 categories for agent decision-making |
 | File writes | Base64-encoded content | Bypass MCP JSON serialization breakage on quotes/backticks |
@@ -51,11 +52,10 @@ State files: ~/.local/share/state/commands-rtk/
 | `src/server.ts` | MCP server hub: 8 tool handlers + resource root setup + TOML config loader |
 | `src/resolver.ts` | URI resolution: SchemeEntry, resolveUri(), listSchemes() — forked from uri-resolver |
 | `src/schemas.ts` | All Zod schemas: RunProcessArgs, ResolveUriArgs, CacheEntry, ExecResult, WriteFileArgs, ErrorCategory, etc. |
-| `src/executor.ts` | Shell spawn engine: spawn, stream collect, timeout, sigkill |
+| `src/executor.ts` | Shell spawn engine: spawn, stream collect, timeout, sigkill. Includes `rewriteCommandFast()` for inline RTK dispatch |
 | `src/cache.ts` | SHA-256 hashed command cache with 2s debounced JSON persistence |
-| `src/logger.ts` | Append-only JSONL execution log: auto-rotate, gzip archive, archive listing |
+| `src/logger.ts` | Async append-only JSONL execution log: auto-rotate, gzip archive, archive listing. Non-blocking via `node:fs/promises` |
 | `src/config.ts` | TOML loader via smol-toml: execution config + log config |
-| `src/rtk.ts` | RTK rewrite integration: tryRewrite() — calls `rtk rewrite` subprocess for smart command dispatch |
 | `src/errors.ts` | Error categorizer: 7 patterns matched against stderr+stdout |
 | `rtk-hook.toml` | Config: timeout, buffer, debounce |
 | `~/.local/share/state/commands-rtk/command-cache.json` | Persistent cache file (auto-created) |
@@ -77,7 +77,7 @@ interface ResolveUriArgs { uri: string; }
 
 // Core types
 interface ExecResult { success: boolean; stdout: string; stderr: string; exitCode: number; duration_ms: number; error_type: ErrorCategory | null; }
-interface CacheEntry { result: ExecResult; timestamp: number; command: string; raw_command: string; rtk_filtered: boolean; rtk_rewritten: boolean; model_used: string; }
+interface CacheEntry { result: ExecResult; timestamp: number; command: string; model_used: string; }
 interface ExecutionLogEntry extends CacheEntry { key: string; cached: boolean; stdout_lines: number; stderr_lines: number; }
 type ErrorCategory = "permission_error" | "not_found" | "timeout" | "syntax_error" | "network_error" | "memory_error" | "unknown_error";
 
@@ -91,14 +91,26 @@ interface ServerConfig { timeout_ms: number; max_buffer_mb: number; max_log_entr
 Agent call -> handleRunProcess(args)
   |-> Zod parse & validate RunProcessArgs
   |-> Resolve model_used (arg > env > client name > "unknown")
-  |-> tryRewrite() -> calls `rtk rewrite <cmd>` for smart dispatch (falls back to raw if rtk unavailable)
+  |-> rewriteCache.get(cmd) — inline fast-path (<1ms) or cached rewrite
   |-> hash(command + cwd) -> SHA-256 16-char hex key
   |-> cache lookup (hit? -> return cached + recordHit)
   |-> executeCommand(spawn, timeout, buffer limit)
   |-> cache.set(key, result) -> debounced JSON write
-  |-> logger.append(entry) -> JSONL append
+  |-> logger.append(entry) -> async JSONL append (fire-and-forget)
   |-> return ExecResult with metadata
 ```
+
+### Rewrite Strategy (v0.4.0+)
+
+| Stage | Before | After | Savings |
+|-------|--------|-------|---------|
+| Command arrives | `execFileSync("rtk", ["rewrite", cmd])` | `rewriteCommandFast()` inline | **~90ms → ~0ms** |
+| First rewrite | subprocess call | regex check + string concat | subprocess eliminated |
+| Repeat command | re-run subprocess | `Map.get()` lookup | **~90ms → ~0ms** |
+
+**Fast-path logic** (`executor.ts`): builtin check (cd, export...) + compound check (&&, ||, ;) → passthrough. Everything else → `rtk <command>` prefix.
+
+**In-memory rewrite cache** (`server.ts:rewriteCache`): `Map<string, string>` persists for server lifetime. First unique command is inlined and cached; all repeats skip rewrite entirely.
 
 ### Error Categories
 

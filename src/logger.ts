@@ -1,7 +1,5 @@
-import {
-  appendFileSync, readFileSync, writeFileSync,
-  renameSync, existsSync, readdirSync, unlinkSync,
-} from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from "node:fs";
+import { appendFile } from "node:fs/promises";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { join, dirname, basename } from "node:path";
 import type { ExecutionLogEntry } from "./schemas.js";
@@ -41,15 +39,12 @@ export class ExecutionLogger {
   }
 
   append(entry: ExecutionLogEntry): void {
-    try {
-      if (this.maxActive > 0 && this.entryCount >= this.maxActive) {
-        this.rotate();
-      }
-      appendFileSync(this.filePath, JSON.stringify(entry) + "\n");
-      this.entryCount++;
-    } catch {
-      // best-effort append
+    // Fire-and-forget async append — never blocks the event loop
+    if (this.maxActive > 0 && this.entryCount >= this.maxActive) {
+      this.rotate();
     }
+    appendFile(this.filePath, JSON.stringify(entry) + "\n").catch(() => {});
+    this.entryCount++;
   }
 
   private rotate(): void {
