@@ -16,6 +16,7 @@ import {
   RunProcessArgs,
   ExecutionLogArgs,
   WriteFileArgs,
+  EditFileArgs,
   ResolveUriArgs,
   ReadFileArgs,
 } from "./schemas.js";
@@ -155,7 +156,7 @@ export class ServerCommandsRTK {
         {
           name: "write_file",
           description:
-            "Write a file from base64-encoded content (avoids JSON-serialization breakage with quotes/backticks/special chars). Use when: writing files whose content has special characters, or you want one safe write path. Prefer over: the builtin write tool - base64 sidesteps MCP JSON escaping issues (constraint #338). Avoid when: content is plain ASCII text you already hold - but base64 is still safe.",
+            "Write a file. Hybrid mode: pass `content` (plain text) OR `content_b64` (base64). Prefer content_b64 when the text has quotes/backticks/special chars that break JSON framing; use content for plain ASCII you already hold. At least one is required.",
           inputSchema: {
             type: "object",
             properties: {
@@ -163,12 +164,51 @@ export class ServerCommandsRTK {
                 type: "string",
                 description: "Absolute path to output file",
               },
+              content: {
+                type: "string",
+                description: "Plain-text file content (alternative to content_b64)",
+              },
               content_b64: {
                 type: "string",
-                description: "Base64-encoded file content",
+                description: "Base64-encoded file content (alternative to content)",
               },
             },
-            required: ["path", "content_b64"],
+            required: ["path"],
+          },
+        },
+        {
+          name: "edit_file",
+          description:
+            "Edit a file by replacing old_string with new_string. Hybrid mode: pass plain strings OR _b64 variants (old_string_b64/new_string_b64) for text with quotes/backticks/special chars that break JSON framing. replace_all=true replaces every occurrence; default replaces only the first. Errors if the file doesn't exist or old_string isn't found.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: {
+                type: "string",
+                description: "Absolute path to file to edit",
+              },
+              old_string: {
+                type: "string",
+                description: "Exact text to find (alternative to old_string_b64)",
+              },
+              old_string_b64: {
+                type: "string",
+                description: "Base64-encoded text to find (alternative to old_string)",
+              },
+              new_string: {
+                type: "string",
+                description: "Replacement text (alternative to new_string_b64)",
+              },
+              new_string_b64: {
+                type: "string",
+                description: "Base64-encoded replacement text (alternative to new_string)",
+              },
+              replace_all: {
+                type: "boolean",
+                description: "Replace every occurrence (default: first only)",
+              },
+            },
+            required: ["path"],
           },
         },
           {
@@ -308,6 +348,8 @@ export class ServerCommandsRTK {
             return this.handleResolveUri(args);
           case "write_file":
             return this.handleWriteFile(args);
+          case "edit_file":
+            return this.handleEditFile(args);
           case "read_file":
             return this.handleReadFile(args);
           default:
@@ -534,15 +576,16 @@ export class ServerCommandsRTK {
     args: Record<string, unknown> | undefined,
   ) {
     const parsed = WriteFileArgs.parse(args);
-    const { path: filePath, content_b64 } = parsed;
+    const { path: filePath } = parsed;
+    const content = parsed.content_b64 !== undefined
+      ? Buffer.from(parsed.content_b64, "base64").toString("utf8")
+      : parsed.content!;
 
     const dir = path.dirname(filePath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
 
-    const buffer = Buffer.from(content_b64, "base64");
-    const content = buffer.toString("utf8");
     writeFileSync(filePath, content, "utf8");
 
     return {
@@ -552,7 +595,56 @@ export class ServerCommandsRTK {
           text: JSON.stringify(
             {
               path: filePath,
-              bytes_written: buffer.length,
+              bytes_written: Buffer.byteLength(content, "utf8"),
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
+  }
+
+  private async handleEditFile(
+    args: Record<string, unknown> | undefined,
+  ) {
+    const parsed = EditFileArgs.parse(args);
+    const { path: filePath, replace_all } = parsed;
+    const oldString = parsed.old_string_b64 !== undefined
+      ? Buffer.from(parsed.old_string_b64, "base64").toString("utf8")
+      : parsed.old_string!;
+    const newString = parsed.new_string_b64 !== undefined
+      ? Buffer.from(parsed.new_string_b64, "base64").toString("utf8")
+      : parsed.new_string!;
+
+    if (!existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+
+    const original = readFileSync(filePath, "utf8");
+    if (!original.includes(oldString)) {
+      throw new Error(`old_string not found in ${filePath}`);
+    }
+
+    const updated = replace_all
+      ? original.split(oldString).join(newString)
+      : original.replace(oldString, newString);
+
+    writeFileSync(filePath, updated, "utf8");
+
+    const replaced = replace_all
+      ? original.split(oldString).length - 1
+      : 1;
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              path: filePath,
+              replaced,
+              bytes_written: Buffer.byteLength(updated, "utf8"),
             },
             null,
             2,

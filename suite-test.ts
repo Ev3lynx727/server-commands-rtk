@@ -47,7 +47,7 @@ function genId(): string {
   return randomBytes(4).toString("hex");
 }
 
-function connect(): { proc: ChildProcess; send: (cmd: string, args?: Record<string, unknown>) => Promise<string>; close: () => void } {
+function connect(): { proc: ChildProcess; send: (cmd: string, args?: Record<string, unknown>) => Promise<string>; call: (tool: string, params: Record<string, unknown>) => Promise<string>; close: () => void } {
   const proc = spawn("node", [SERVER_SCRIPT], {
     cwd: SERVER_DIR,
     stdio: ["pipe", "pipe", "pipe"],
@@ -70,13 +70,36 @@ function connect(): { proc: ChildProcess; send: (cmd: string, args?: Record<stri
 
   let msgId = 0;
 
+  function rpc(method: string, params: Record<string, unknown>, id?: number): Promise<string> {
+    const rid = id ?? ++msgId;
+    const request = JSON.stringify({ jsonrpc: "2.0", id: rid, method, params }) + "\n";
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(`timeout waiting for ${method} (id ${rid})`)), 15000);
+      pending.push((line) => { clearTimeout(t); resolve(line); });
+      proc.stdin!.write(request);
+    });
+  }
+
+  // MCP handshake — required before tools/call is answered.
+  rpc("initialize", {
+    protocolVersion: "2024-11-05",
+    capabilities: {},
+    clientInfo: { name: "suite-test", version: "1" },
+  }, 0).then(() => {
+    proc.stdin!.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
+  }).catch(() => {});
+
   async function send(command: string, extra: Record<string, unknown> = {}): Promise<string> {
+    return call("run_process", { command, ...extra });
+  }
+
+  async function call(tool: string, params: Record<string, unknown>): Promise<string> {
     const id = ++msgId;
     const request = JSON.stringify({
       jsonrpc: "2.0",
       id,
       method: "tools/call",
-      params: { name: "run_process", arguments: { command, ...extra } },
+      params: { name: tool, arguments: params },
     }) + "\n";
 
     return new Promise((resolve) => {
@@ -87,7 +110,7 @@ function connect(): { proc: ChildProcess; send: (cmd: string, args?: Record<stri
 
   function close(): void { proc.kill(); }
 
-  return { proc, send, close };
+  return { proc, send, call, close };
 }
 
 async function withServer<T>(fn: (srv: ReturnType<typeof connect>) => Promise<T>): Promise<T> {
@@ -97,19 +120,7 @@ async function withServer<T>(fn: (srv: ReturnType<typeof connect>) => Promise<T>
 }
 
 async function sendTool(server: ReturnType<typeof connect>, tool: string, params: Record<string, unknown> = {}): Promise<string> {
-  const id = 999;
-  const request = JSON.stringify({
-    jsonrpc: "2.0",
-    id,
-    method: "tools/call",
-    params: { name: tool, arguments: params },
-  }) + "\n";
-
-  return new Promise((resolve) => {
-    (server as any).pending = (server as any).pending || [];
-    (server as any).pending.push((line: string) => resolve(line));
-    server.proc.stdin!.write(request);
-  });
+  return server.call(tool, params);
 }
 
 const RUN_UNIT = RUN_ALL || args.includes("--unit");
@@ -277,6 +288,77 @@ async function integrationTests() {
       const parsed = JSON.parse(resp);
       const data = JSON.parse(parsed.result?.content?.[0]?.text || "{}");
       assert(data.result?.success === false, "not success");
+    });
+
+    await runTest("integration: write_file plain content", async () => {
+      const tmp = join(tmpdir(), "srtk-wf-" + genId() + ".txt");
+      const resp = await sendTool(srv, "write_file", { path: tmp, content: "plain hello" });
+      const parsed = JSON.parse(resp);
+      const data = JSON.parse(parsed.result?.content?.[0]?.text || "{}");
+      assert(data.path === tmp, "path echoed");
+      assert(data.bytes_written === 11, "plain bytes");
+      assert(readFileSync(tmp, "utf8") === "plain hello", "file content");
+      unlinkSync(tmp);
+    });
+
+    await runTest("integration: write_file base64 content", async () => {
+      const tmp = join(tmpdir(), "srtk-wf-" + genId() + ".txt");
+      const b64 = Buffer.from("b64 `backtick` \"quote\" ${var}").toString("base64");
+      const resp = await sendTool(srv, "write_file", { path: tmp, content_b64: b64 });
+      const parsed = JSON.parse(resp);
+      const data = JSON.parse(parsed.result?.content?.[0]?.text || "{}");
+      assert(data.path === tmp, "path echoed");
+      assert(readFileSync(tmp, "utf8") === "b64 `backtick` \"quote\" ${var}", "b64 content restored");
+      unlinkSync(tmp);
+    });
+
+    await runTest("write_file rejects neither content", async () => {
+      const tmp = join(tmpdir(), "srtk-wf-" + genId() + ".txt");
+      const resp = await sendTool(srv, "write_file", { path: tmp });
+      const parsed = JSON.parse(resp);
+      assert(parsed.error || parsed.result?.isError, "should error when no content");
+    });
+
+    await runTest("integration: edit_file replace first", async () => {
+      const tmp = join(tmpdir(), "srtk-ef-" + genId() + ".txt");
+      writeFileSync(tmp, "foo bar foo");
+      const resp = await sendTool(srv, "edit_file", { path: tmp, old_string: "foo", new_string: "baz" });
+      const parsed = JSON.parse(resp);
+      const data = JSON.parse(parsed.result?.content?.[0]?.text || "{}");
+      assert(data.replaced === 1, "replaced once");
+      assert(readFileSync(tmp, "utf8") === "baz bar foo", "first replaced");
+      unlinkSync(tmp);
+    });
+
+    await runTest("integration: edit_file replace_all", async () => {
+      const tmp = join(tmpdir(), "srtk-ef-" + genId() + ".txt");
+      writeFileSync(tmp, "foo foo foo");
+      const resp = await sendTool(srv, "edit_file", { path: tmp, old_string: "foo", new_string: "baz", replace_all: true });
+      const parsed = JSON.parse(resp);
+      const data = JSON.parse(parsed.result?.content?.[0]?.text || "{}");
+      assert(data.replaced === 3, "replaced all");
+      assert(readFileSync(tmp, "utf8") === "baz baz baz", "all replaced");
+      unlinkSync(tmp);
+    });
+
+    await runTest("integration: edit_file b64 mode", async () => {
+      const tmp = join(tmpdir(), "srtk-ef-" + genId() + ".txt");
+      writeFileSync(tmp, "a `backtick` b");
+      const oldB64 = Buffer.from("`backtick`").toString("base64");
+      const newB64 = Buffer.from("`changed`").toString("base64");
+      const resp = await sendTool(srv, "edit_file", { path: tmp, old_string_b64: oldB64, new_string_b64: newB64 });
+      const parsed = JSON.parse(resp);
+      assert(readFileSync(tmp, "utf8") === "a `changed` b", "b64 edit applied");
+      unlinkSync(tmp);
+    });
+
+    await runTest("edit_file errors when old_string missing", async () => {
+      const tmp = join(tmpdir(), "srtk-ef-" + genId() + ".txt");
+      writeFileSync(tmp, "hello world");
+      const resp = await sendTool(srv, "edit_file", { path: tmp, old_string: "zzz", new_string: "x" });
+      const parsed = JSON.parse(resp);
+      assert(parsed.error || parsed.result?.isError, "should error when old_string absent");
+      unlinkSync(tmp);
     });
   });
 }

@@ -92,7 +92,10 @@ export type ExecutionLogEntry = z.infer<typeof ExecutionLogEntry>;
 
 export const WriteFileArgs = z.object({
   path: z.string().min(1, "path is required"),
-  content_b64: z.string().min(1, "content_b64 is required"),
+  content: z.string().optional(),
+  content_b64: z.string().optional(),
+}).refine((a) => a.content !== undefined || a.content_b64 !== undefined, {
+  message: "provide either content (plain text) or content_b64",
 });
 
 export type WriteFileArgs = z.infer<typeof WriteFileArgs>;
@@ -103,6 +106,29 @@ export const WriteFileResult = z.object({
 });
 
 export type WriteFileResult = z.infer<typeof WriteFileResult>;
+
+export const EditFileArgs = z.object({
+  path: z.string().min(1, "path is required"),
+  old_string: z.string().optional(),
+  old_string_b64: z.string().optional(),
+  new_string: z.string().optional(),
+  new_string_b64: z.string().optional(),
+  replace_all: z.boolean().default(false),
+}).refine((a) => a.old_string !== undefined || a.old_string_b64 !== undefined, {
+  message: "provide either old_string (plain text) or old_string_b64",
+}).refine((a) => a.new_string !== undefined || a.new_string_b64 !== undefined, {
+  message: "provide either new_string (plain text) or new_string_b64",
+});
+
+export type EditFileArgs = z.infer<typeof EditFileArgs>;
+
+export const EditFileResult = z.object({
+  path: z.string(),
+  replaced: z.number(),
+  bytes_written: z.number(),
+});
+
+export type EditFileResult = z.infer<typeof EditFileResult>;
 
 export const ResolveUriArgs = z.object({
   uri: z.string().min(1, "uri is required"),
