@@ -46,7 +46,8 @@ export class ServerCommandsRTK {
 
     this.config = loadConfig(path.join(serverDir, "rtk-hook.toml"));
 
-    const logDir = path.join(expandHome("~/.local/share"), "state/commands-rtk");
+    const logDir = process.env.ARK_RTK_DIR ||
+      path.join(expandHome("~/.local/share"), "state/commands-rtk");
     mkdirSync(logDir, { recursive: true });
     this.cache = new CommandCache(
       path.join(logDir, "command-cache.json"),
